@@ -4,20 +4,22 @@ import { formatINR } from '../../utils/currency';
 
 interface BudgetProgressProps {
   totalSpent: number;
-  monthlyBudget: number;
+  workspaceBudget: number;
+  periodLabel: string;
   spentPercentage: number;
   isOverBudget: boolean;
 }
 
 export const BudgetProgress: React.FC<BudgetProgressProps> = ({
   totalSpent,
-  monthlyBudget,
+  workspaceBudget,
+  periodLabel,
   spentPercentage,
   isOverBudget,
 }) => {
   // Clamp width between 0 and 100 for visual progress bar
-  const visualProgressWidth = monthlyBudget > 0
-    ? Math.min(Math.max((totalSpent / monthlyBudget) * 100, 0), 100)
+  const visualProgressWidth = workspaceBudget > 0
+    ? Math.min(Math.max((totalSpent / workspaceBudget) * 100, 0), 100)
     : 0;
 
   // Determine status variant
@@ -64,7 +66,7 @@ export const BudgetProgress: React.FC<BudgetProgressProps> = ({
         aria-valuenow={Math.round(spentPercentage)}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="Monthly budget consumed"
+        aria-label={`${periodLabel} budget consumed`}
       >
         <div
           className={`progress-bar-fill ${barClass}`}
@@ -79,11 +81,10 @@ export const BudgetProgress: React.FC<BudgetProgressProps> = ({
           <span className="metric-value">{formatINR(totalSpent)}</span>
         </div>
         <div className="metric-item" style={{ textAlign: 'right' }}>
-          <span className="metric-label">Monthly Budget</span>
-          <span className="metric-value">{formatINR(monthlyBudget)}</span>
+          <span className="metric-label">Workspace Budget</span>
+          <span className="metric-value">{formatINR(workspaceBudget)}</span>
         </div>
       </div>
     </section>
   );
 };
-

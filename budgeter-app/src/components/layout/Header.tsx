@@ -4,7 +4,6 @@ import { Menu, Plus } from 'lucide-react';
 interface HeaderProps {
   title?: string;
   subtitle?: string;
-  isCloudConnected?: boolean;
   onOpenAddExpense: () => void;
   onToggleMobileMenu: () => void;
 }
@@ -12,7 +11,6 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   title = 'Dashboard',
   subtitle = "Here's what's happening with your money.",
-  isCloudConnected = false,
   onOpenAddExpense,
   onToggleMobileMenu,
 }) => {
@@ -34,18 +32,6 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="header-actions">
-        <div
-          className="connection-badge"
-          title={
-            isCloudConnected
-              ? 'Connected to Supabase live database'
-              : 'Using local storage mode. Add Supabase keys to .env for cloud sync'
-          }
-        >
-          <span className={`status-dot ${isCloudConnected ? 'connected' : 'local'}`} />
-          <span>{isCloudConnected ? 'Supabase Sync' : 'Local Mode'}</span>
-        </div>
-
         <button
           type="button"
           className="btn-primary"
@@ -59,4 +45,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-

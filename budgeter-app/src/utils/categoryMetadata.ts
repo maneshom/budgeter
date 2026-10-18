@@ -21,7 +21,7 @@ export interface CategoryInfo {
   borderColor: string;
 }
 
-export const CATEGORY_CONFIG: Record<ExpenseCategory, CategoryInfo> = {
+export const CATEGORY_CONFIG: Partial<Record<ExpenseCategory, CategoryInfo>> = {
   'Food & Shopping': {
     label: 'Food & Shopping',
     icon: ShoppingBag,
@@ -98,4 +98,3 @@ export function getCategoryInfo(category: ExpenseCategory): CategoryInfo {
     }
   );
 }
-

@@ -1,4 +1,4 @@
-/* SpendWise Design System Tokens & Base CSS */
+/* MoneyUndo design system tokens & base styles */
 :root {
   /* Brand Palette - Purple Primary */
   --primary: #7c3aed;
@@ -106,4 +106,3 @@ a {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
-

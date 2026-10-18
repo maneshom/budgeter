@@ -10,7 +10,7 @@ export const EXPENSE_CATEGORIES = [
   'Other',
 ] as const;
 
-export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+export type ExpenseCategory = string;
 
 export type TransactionStatus = 'approved' | 'pending' | 'rejected';
 
@@ -22,21 +22,47 @@ export interface Transaction {
   date: string; // YYYY-MM-DD format
   workspaceId: string;
   createdBy?: string;
+  createdById?: string;
   status: TransactionStatus;
   notes?: string;
   createdAt: string;
 }
 
-export interface MonthlyBudget {
+export type BudgetPeriodType = 'monthly' | 'yearly' | 'custom';
+export type WorkspaceBudgetMode = 'fixed' | 'category_total' | 'capped';
+
+export interface WorkspaceBudgetConfig {
   id: string;
   workspaceId: string;
-  month: number; // 1-12
-  year: number;
+  amount: number;
+  mode: WorkspaceBudgetMode;
+  periodType: BudgetPeriodType;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface WorkspaceBudgetCategory {
+  id: string;
+  workspaceId: string;
+  name: string;
+  amount: number;
+}
+
+export interface SaveWorkspaceBudgetPayload {
+  amount: number;
+  mode: WorkspaceBudgetMode;
+  periodType: BudgetPeriodType;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface SaveWorkspaceCategoryPayload {
+  name: string;
   amount: number;
 }
 
 export interface DashboardSummary {
-  monthlyBudget: number;
+  workspaceBudget: number;
   totalSpent: number;
   remainingBalance: number;
   spentPercentage: number;
@@ -44,21 +70,37 @@ export interface DashboardSummary {
   transactionCount: number;
 }
 
+export type SystemRole = 'owner' | 'member';
+
+export type WorkspaceRole = 'owner' | 'admin' | 'member';
+
 export interface Workspace {
   id: string;
   name: string;
   description?: string;
   currency: string;
-  role: 'admin' | 'member' | 'viewer';
+  ownerId?: string;
+  role: WorkspaceRole;
   membersCount: number;
+  createdAt?: string;
 }
 
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
-  role: string;
+  systemRole: SystemRole;
   avatarUrl?: string;
+}
+
+export interface WorkspaceMember {
+  id: string;
+  workspaceId: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: WorkspaceRole;
+  createdAt: string;
 }
 
 export interface NewExpensePayload {
@@ -68,4 +110,3 @@ export interface NewExpensePayload {
   date: string;
   notes?: string;
 }
-

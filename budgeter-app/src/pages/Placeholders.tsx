@@ -1,22 +1,20 @@
 import React, { useState } from 'react';
 import {
-  BarChart3,
   Settings,
   Sparkles,
   ArrowLeft,
   ShieldCheck,
   Users2,
-  PieChart,
   Search,
   Filter,
 } from 'lucide-react';
-import type { Transaction, ExpenseCategory } from '../types/expense';
-import { EXPENSE_CATEGORIES } from '../types/expense';
+import type { Transaction } from '../types/expense';
 import { TransactionRow } from '../components/dashboard/TransactionRow';
 import { formatINR } from '../utils/currency';
 
 interface TransactionsPageProps {
   transactions: Transaction[];
+  categories: string[];
   onDeleteTransaction: (id: string) => void;
   onOpenAddExpense: () => void;
   onBackToDashboard: () => void;
@@ -24,6 +22,7 @@ interface TransactionsPageProps {
 
 export const TransactionsPage: React.FC<TransactionsPageProps> = ({
   transactions,
+  categories,
   onDeleteTransaction,
   onOpenAddExpense,
   onBackToDashboard,
@@ -98,7 +97,7 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({
             onChange={(e) => setSelectedCategory(e.target.value)}
           >
             <option value="all">All Categories</option>
-            {EXPENSE_CATEGORIES.map((cat: ExpenseCategory) => (
+            {categories.map((cat) => (
               <option key={cat} value={cat}>
                 {cat}
               </option>
@@ -130,44 +129,6 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({
   );
 };
 
-export const ReportsPlaceholder: React.FC<{ onBackToDashboard: () => void }> = ({
-  onBackToDashboard,
-}) => {
-  return (
-    <div className="page-container">
-      <div className="placeholder-card">
-        <span className="placeholder-badge">Planned Feature • Phase 2</span>
-        <div style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-          <BarChart3 size={24} />
-        </div>
-        <h2 className="placeholder-title">Visual Reports & Analytics</h2>
-        <p className="placeholder-desc">
-          Category breakdowns, monthly spending trends, and comparative charts will be enabled in Phase 2 alongside the Supabase backend integration.
-        </p>
-
-        <div className="feature-checklist">
-          <div className="feature-item">
-            <PieChart size={18} className="feature-icon" />
-            <span>Category-wise breakdown charts and percentage distributions</span>
-          </div>
-          <div className="feature-item">
-            <Sparkles size={18} className="feature-icon" />
-            <span>Month-over-month household budget variance analysis</span>
-          </div>
-          <div className="feature-item">
-            <Users2 size={18} className="feature-icon" />
-            <span>Member-wise spending attribution for shared families</span>
-          </div>
-        </div>
-
-        <button type="button" className="btn-primary" onClick={onBackToDashboard}>
-          Return to Dashboard
-        </button>
-      </div>
-    </div>
-  );
-};
-
 export const SettingsPlaceholder: React.FC<{ onBackToDashboard: () => void }> = ({
   onBackToDashboard,
 }) => {
@@ -180,7 +141,7 @@ export const SettingsPlaceholder: React.FC<{ onBackToDashboard: () => void }> = 
         </div>
         <h2 className="placeholder-title">Family & Workspace Settings</h2>
         <p className="placeholder-desc">
-          Manage family members, invite co-managers, configure monthly budget limits, and set up Supabase Row Level Security (RLS) policies.
+          Manage family members, invite co-managers, and configure workspace budgets and categories.
         </p>
 
         <div className="feature-checklist">
@@ -194,7 +155,7 @@ export const SettingsPlaceholder: React.FC<{ onBackToDashboard: () => void }> = 
           </div>
           <div className="feature-item">
             <Sparkles size={18} className="feature-icon" />
-            <span>Supabase Cloud Sync and multi-device real-time updates</span>
+            <span>Secure cloud data access across your devices</span>
           </div>
         </div>
 
@@ -205,4 +166,3 @@ export const SettingsPlaceholder: React.FC<{ onBackToDashboard: () => void }> = 
     </div>
   );
 };
-

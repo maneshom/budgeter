@@ -1,5 +1,5 @@
 /**
- * Date formatting and calculation utilities for SpendWise.
+ * Date formatting and calculation utilities for MoneyUndo.
  */
 
 /**
@@ -75,4 +75,3 @@ export function formatTransactionDate(dateStr: string): string {
     year: 'numeric',
   }).format(parsed);
 }
-

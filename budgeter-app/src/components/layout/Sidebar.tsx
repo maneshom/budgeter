@@ -1,15 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   LayoutDashboard,
   ReceiptText,
   BarChart3,
   Settings,
-  WalletCards,
   ChevronDown,
   X,
   Users,
+  Check,
+  Plus,
+  LogOut,
 } from 'lucide-react';
 import type { Workspace, UserProfile } from '../../types/expense';
+import { MoneyUndoMark } from '../brand/MoneyUndoMark';
 
 interface SidebarProps {
   activeTab: string;
@@ -17,7 +20,11 @@ interface SidebarProps {
   mobileOpen: boolean;
   onCloseMobile: () => void;
   workspace: Workspace;
+  workspaces: Workspace[];
+  onSelectWorkspace: (ws: Workspace) => void;
+  onOpenCreateWorkspace: () => void;
   currentUser: UserProfile;
+  onSignOut: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -26,18 +33,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
   onCloseMobile,
   workspace,
+  workspaces,
+  onSelectWorkspace,
+  onOpenCreateWorkspace,
   currentUser,
+  onSignOut,
 }) => {
+  const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   // Close sidebar on Escape key when on mobile
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && mobileOpen) {
-        onCloseMobile();
+      if (e.key === 'Escape') {
+        if (isWorkspaceMenuOpen) {
+          setIsWorkspaceMenuOpen(false);
+        } else if (mobileOpen) {
+          onCloseMobile();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mobileOpen, onCloseMobile]);
+  }, [mobileOpen, onCloseMobile, isWorkspaceMenuOpen]);
+
+  // Click outside listener for workspace dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsWorkspaceMenuOpen(false);
+      }
+    };
+    if (isWorkspaceMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isWorkspaceMenuOpen]);
 
   const navItems = [
     {
@@ -73,6 +104,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  const isOwner = currentUser.systemRole === 'owner';
+
   return (
     <>
       {/* Mobile Backdrop Overlay */}
@@ -91,10 +124,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="sidebar-header">
           <div className="brand-wrapper">
             <div className="brand-logo">
-              <div className="brand-icon" aria-hidden="true">
-                <WalletCards size={20} strokeWidth={2.2} />
-              </div>
-              <span className="brand-name">SpendWise</span>
+              <MoneyUndoMark />
+              <span className="brand-name">MoneyUndo</span>
             </div>
             {mobileOpen ? (
               <button
@@ -106,34 +137,88 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <X size={18} />
               </button>
             ) : (
-              <span className="brand-badge">Family</span>
+              <span className={`brand-badge ${isOwner ? 'owner' : ''}`}>
+                {isOwner ? 'Owner' : 'Family'}
+              </span>
             )}
           </div>
 
-          {/* Family Budget Workspace Selector */}
-          <div
-            className="workspace-selector"
-            role="button"
-            tabIndex={0}
-            title={`Active Workspace: ${workspace.name}`}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-              }
-            }}
-          >
-            <div className="workspace-info">
-              <div className="workspace-avatar" aria-hidden="true">
-                <Users size={14} />
+          {/* Interactive Workspace Selector */}
+          <div className="workspace-selector-container" ref={dropdownRef}>
+            <button
+              type="button"
+              className="workspace-selector"
+              onClick={() => setIsWorkspaceMenuOpen((prev) => !prev)}
+              aria-expanded={isWorkspaceMenuOpen}
+              aria-haspopup="true"
+              title={`Switch workspace (Current: ${workspace.name})`}
+            >
+              <div className="workspace-info">
+                <div className="workspace-avatar" aria-hidden="true">
+                  <Users size={14} />
+                </div>
+                <div className="workspace-text">
+                  <span className="workspace-title">{workspace.name}</span>
+                  <span className="workspace-sub">
+                    {workspace.membersCount} {workspace.membersCount === 1 ? 'member' : 'members'} • {workspace.currency}
+                  </span>
+                </div>
               </div>
-              <div className="workspace-text">
-                <span className="workspace-title">{workspace.name}</span>
-                <span className="workspace-sub">
-                  {workspace.membersCount} members • INR
-                </span>
+              <ChevronDown
+                size={14}
+                color="var(--text-tertiary)"
+                style={{
+                  transform: isWorkspaceMenuOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.15s ease',
+                }}
+              />
+            </button>
+
+            {/* Dropdown Menu */}
+            {isWorkspaceMenuOpen && (
+              <div className="workspace-dropdown-menu" role="menu">
+                <div className="workspace-dropdown-header">
+                  <span>Workspaces ({workspaces.length})</span>
+                </div>
+                <div className="workspace-dropdown-list">
+                  {workspaces.map((ws) => {
+                    const isSelected = ws.id === workspace.id;
+                    return (
+                      <button
+                        key={ws.id}
+                        type="button"
+                        className={`workspace-dropdown-item ${isSelected ? 'selected' : ''}`}
+                        onClick={() => {
+                          onSelectWorkspace(ws);
+                          setIsWorkspaceMenuOpen(false);
+                        }}
+                        role="menuitem"
+                      >
+                        <div className="ws-drop-left">
+                          <span className="ws-drop-name">{ws.name}</span>
+                          <span className="ws-drop-role">{ws.role.toUpperCase()}</span>
+                        </div>
+                        {isSelected && <Check size={14} className="ws-drop-check" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {isOwner && (
+                  <button
+                    type="button"
+                    className="workspace-dropdown-action"
+                    onClick={() => {
+                      setIsWorkspaceMenuOpen(false);
+                      onOpenCreateWorkspace();
+                    }}
+                  >
+                    <Plus size={15} />
+                    <span>Create New Workspace</span>
+                  </button>
+                )}
               </div>
-            </div>
-            <ChevronDown size={14} color="var(--text-tertiary)" />
+            )}
           </div>
         </div>
 
@@ -156,9 +241,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span>{item.label}</span>
                 </div>
                 {item.badge && (
-                  <span
-                    className={`nav-badge ${isActive ? 'accent' : ''}`}
-                  >
+                  <span className={`nav-badge ${isActive ? 'accent' : ''}`}>
                     {item.badge}
                   </span>
                 )}
@@ -167,20 +250,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </nav>
 
-        {/* User Profile Footer */}
+        {/* User Profile Footer & Sign Out */}
         <div className="sidebar-footer">
           <div className="user-profile">
             <div className="user-avatar" aria-hidden="true">
-              {currentUser.name.charAt(0)}
+              {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
             </div>
             <div className="user-meta">
-              <span className="user-name">{currentUser.name}</span>
-              <span className="user-role">{currentUser.role}</span>
+              <span className="user-name" title={currentUser.name}>
+                {currentUser.name}
+              </span>
+              <span className="user-role" title={currentUser.email}>
+                {workspace.role === 'owner' || isOwner
+                  ? 'Owner'
+                  : workspace.role === 'admin'
+                  ? 'Admin'
+                  : 'Member'}
+              </span>
             </div>
+            <button
+              type="button"
+              className="btn-signout"
+              onClick={onSignOut}
+              title="Sign Out"
+              aria-label="Sign out of MoneyUndo"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </aside>
     </>
   );
 };
-

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, AlertCircle, Loader2 } from 'lucide-react';
-import { EXPENSE_CATEGORIES } from '../../types/expense';
 import type { ExpenseCategory, NewExpensePayload } from '../../types/expense';
 import { getTodayDateString } from '../../utils/date';
 import { parseValidAmount } from '../../utils/currency';
 
 interface AddExpenseModalProps {
   isOpen: boolean;
+  categories: string[];
   onClose: () => void;
   onSubmit: (expense: NewExpensePayload) => Promise<void> | void;
 }
@@ -20,12 +20,13 @@ interface FormErrors {
 
 export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   isOpen,
+  categories,
   onClose,
   onSubmit,
 }) => {
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState<ExpenseCategory>('Food & Shopping');
+  const [category, setCategory] = useState<ExpenseCategory>(categories[0] || '');
   const [date, setDate] = useState(getTodayDateString());
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,7 +47,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       // Reset form state on close
       setName('');
       setAmount('');
-      setCategory('Food & Shopping');
+      setCategory(categories[0] || '');
       setDate(getTodayDateString());
       setNotes('');
       setErrors({});
@@ -54,6 +55,12 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setIsSubmitting(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && categories.length > 0 && !categories.includes(category)) {
+      setCategory(categories[0]);
+    }
+  }, [categories, category, isOpen]);
 
   // Handle ESC key to close
   useEffect(() => {
@@ -100,7 +107,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         return undefined;
       }
       case 'category': {
-        if (!EXPENSE_CATEGORIES.includes(value as ExpenseCategory)) {
+        if (!categories.includes(value)) {
           return 'Please select a valid expense category.';
         }
         return undefined;
@@ -334,7 +341,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 disabled={isSubmitting}
                 required
               >
-                {EXPENSE_CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
@@ -429,4 +436,3 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     </div>
   );
 };
-
