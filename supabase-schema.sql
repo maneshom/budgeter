@@ -396,10 +396,13 @@ $$;
 -- ==============================================================================
 
 -- Create a workspace (Owner only)
+DROP FUNCTION IF EXISTS public.create_workspace(TEXT, TEXT, TEXT);
 CREATE OR REPLACE FUNCTION public.create_workspace(
   p_name TEXT,
   p_description TEXT DEFAULT NULL,
-  p_currency TEXT DEFAULT 'INR'
+  p_currency TEXT DEFAULT 'INR',
+  p_category_mode TEXT DEFAULT 'default',
+  p_source_workspace_id UUID DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -409,6 +412,7 @@ AS $$
 DECLARE
   v_user_id UUID := auth.uid();
   v_workspace_id UUID;
+  v_category_count INTEGER;
 BEGIN
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated';
@@ -420,6 +424,21 @@ BEGIN
 
   IF coalesce(trim(p_name), '') = '' THEN
     RAISE EXCEPTION 'Workspace name cannot be empty';
+  END IF;
+  IF p_category_mode IS NULL OR p_category_mode NOT IN (
+    'default', 'none', 'clone_empty', 'clone_allocations'
+  ) THEN
+    RAISE EXCEPTION 'Invalid workspace category setup';
+  END IF;
+  IF p_category_mode IN ('clone_empty', 'clone_allocations') THEN
+    IF p_source_workspace_id IS NULL THEN
+      RAISE EXCEPTION 'Choose a source workspace for category cloning';
+    END IF;
+    IF NOT public.has_workspace_access(p_source_workspace_id, v_user_id) THEN
+      RAISE EXCEPTION 'You do not have access to the source workspace';
+    END IF;
+  ELSIF p_source_workspace_id IS NOT NULL THEN
+    RAISE EXCEPTION 'A source workspace is only valid when cloning categories';
   END IF;
 
   INSERT INTO public.workspaces (name, description, currency, owner_id)
@@ -439,14 +458,32 @@ BEGIN
   VALUES (v_workspace_id, 50000.00);
 
   INSERT INTO public.workspace_categories (workspace_id, name, amount)
-  SELECT v_workspace_id, category.name, 0
+  SELECT v_workspace_id, categories.name, categories.amount
   FROM (
+    SELECT category.name, 0::NUMERIC(12, 2) AS amount
+    FROM (
     VALUES
       ('Food & Shopping'), ('Housing'), ('Utilities'), ('Transport'),
       ('Food & Dining'), ('Healthcare'), ('Education'), ('Entertainment'), ('Other')
-  ) AS category(name);
+    ) AS category(name)
+    WHERE p_category_mode = 'default'
 
-  RETURN jsonb_build_object('success', true, 'workspace_id', v_workspace_id);
+    UNION ALL
+
+    SELECT source.name,
+      CASE WHEN p_category_mode = 'clone_allocations' THEN source.amount ELSE 0 END
+    FROM public.workspace_categories AS source
+    WHERE source.workspace_id = p_source_workspace_id
+      AND p_category_mode IN ('clone_empty', 'clone_allocations')
+  ) AS categories
+  ON CONFLICT DO NOTHING;
+  GET DIAGNOSTICS v_category_count = ROW_COUNT;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'workspace_id', v_workspace_id,
+    'category_count', v_category_count
+  );
 END;
 $$;
 
@@ -682,12 +719,49 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.clone_workspace_categories(
+  p_source_workspace_id UUID,
+  p_target_workspace_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_added_count INTEGER;
+BEGIN
+  IF p_source_workspace_id IS NULL
+    OR p_target_workspace_id IS NULL
+    OR p_source_workspace_id = p_target_workspace_id THEN
+    RAISE EXCEPTION 'Choose a different source workspace';
+  END IF;
+  IF NOT public.has_workspace_access(p_source_workspace_id, auth.uid()) THEN
+    RAISE EXCEPTION 'You do not have access to the source workspace';
+  END IF;
+  IF NOT public.is_workspace_admin(p_target_workspace_id, auth.uid()) THEN
+    RAISE EXCEPTION 'Only workspace owners and admins can add categories';
+  END IF;
+
+  INSERT INTO public.workspace_categories (workspace_id, name, amount)
+  SELECT p_target_workspace_id, source.name, 0
+  FROM public.workspace_categories AS source
+  WHERE source.workspace_id = p_source_workspace_id
+  ON CONFLICT DO NOTHING;
+  GET DIAGNOSTICS v_added_count = ROW_COUNT;
+
+  RETURN jsonb_build_object('success', true, 'added_count', v_added_count);
+END;
+$$;
+
 REVOKE ALL ON FUNCTION public.save_workspace_budget(UUID, NUMERIC, TEXT, TEXT, DATE, DATE) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.save_workspace_budget(UUID, NUMERIC, TEXT, TEXT, DATE, DATE) TO authenticated;
 REVOKE ALL ON FUNCTION public.save_workspace_category(UUID, UUID, TEXT, NUMERIC) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.save_workspace_category(UUID, UUID, TEXT, NUMERIC) TO authenticated;
 REVOKE ALL ON FUNCTION public.delete_workspace_category(UUID, UUID) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.delete_workspace_category(UUID, UUID) TO authenticated;
+REVOKE ALL ON FUNCTION public.clone_workspace_categories(UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.clone_workspace_categories(UUID, UUID) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.validate_transaction_category()
 RETURNS TRIGGER

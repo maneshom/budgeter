@@ -184,6 +184,28 @@ class BudgetService {
     }
     if (!data?.success) throw new Error(data?.message || 'Failed to delete category.');
   }
+
+  public async cloneCategories(
+    sourceWorkspaceId: string,
+    targetWorkspaceId: string
+  ): Promise<number> {
+    if (!supabase) throw new Error('Budget services are unavailable. Please contact support.');
+    if (!sourceWorkspaceId || !targetWorkspaceId || sourceWorkspaceId === targetWorkspaceId) {
+      throw new Error('Choose a different source workspace.');
+    }
+    const { data, error } = await supabase.rpc('clone_workspace_categories', {
+      p_source_workspace_id: sourceWorkspaceId,
+      p_target_workspace_id: targetWorkspaceId,
+    });
+    if (error) {
+      console.error('Failed to clone workspace categories:', error);
+      throw new Error(`Failed to clone categories: ${error.message}`);
+    }
+    if (!data?.success || typeof data?.added_count !== 'number') {
+      throw new Error(data?.message || 'Failed to clone categories.');
+    }
+    return data.added_count;
+  }
 }
 
 export const budgetService = new BudgetService();

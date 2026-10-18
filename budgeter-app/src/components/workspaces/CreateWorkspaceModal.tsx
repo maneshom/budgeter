@@ -3,11 +3,14 @@ import { X, Loader2, Building, AlertCircle } from 'lucide-react';
 import { workspaceService } from '../../services/workspaceService';
 import type { Workspace } from '../../types/expense';
 
+type CategorySetup = 'default' | 'none' | 'clone_empty' | 'clone_allocations';
+
 interface CreateWorkspaceModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreated: (workspace: Workspace) => void;
   userId?: string;
+  workspaces: Workspace[];
 }
 
 export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
@@ -15,12 +18,22 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
   onClose,
   onCreated,
   userId,
+  workspaces,
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [currency, setCurrency] = useState('INR');
+  const [categorySetup, setCategorySetup] = useState<CategorySetup>('default');
+  const [sourceWorkspaceId, setSourceWorkspaceId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const cloneSources = workspaces;
+
+  React.useEffect(() => {
+    if (!cloneSources.some((workspace) => workspace.id === sourceWorkspaceId)) {
+      setSourceWorkspaceId(cloneSources[0]?.id || '');
+    }
+  }, [cloneSources, sourceWorkspaceId]);
 
   if (!isOpen) return null;
 
@@ -41,11 +54,16 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
         cleanName,
         description.trim() || undefined,
         currency,
-        userId
+        userId,
+        {
+          mode: categorySetup,
+          sourceWorkspaceId: categorySetup.startsWith('clone_') ? sourceWorkspaceId : undefined,
+        }
       );
       setName('');
       setDescription('');
       setCurrency('INR');
+      setCategorySetup('default');
       onCreated(created);
       onClose();
     } catch (err: any) {
@@ -78,7 +96,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
               Create New Workspace
             </h2>
             <p className="modal-subtitle">
-              Set up a separate household budget and expense workspace
+              Set up a workspace for any budget or spending goal
             </p>
           </div>
           <button
@@ -111,7 +129,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                   id="ws-name"
                   type="text"
                   className="form-input has-prefix-icon"
-                  placeholder="e.g. Mumbai Household, Vacation Budget"
+                  placeholder="e.g. Personal, Travel, or Project Budget"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   maxLength={60}
@@ -154,6 +172,46 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                 <option value="GBP">British Pound (GBP - £)</option>
               </select>
             </div>
+
+            <div className="form-field">
+              <label htmlFor="ws-category-setup" className="form-label">
+                Category setup
+              </label>
+              <select
+                id="ws-category-setup"
+                className="form-select"
+                value={categorySetup}
+                onChange={(event) => setCategorySetup(event.target.value as CategorySetup)}
+                disabled={isLoading}
+              >
+                <option value="default">Default categories</option>
+                <option value="none">No categories</option>
+                <option value="clone_empty">Clone categories from a workspace (zero allocations)</option>
+                <option value="clone_allocations">Clone categories and allocations from a workspace</option>
+              </select>
+            </div>
+
+            {categorySetup.startsWith('clone_') && (
+              <div className="form-field">
+                <label htmlFor="ws-category-source" className="form-label">
+                  Copy categories from
+                </label>
+                <select
+                  id="ws-category-source"
+                  className="form-select"
+                  value={sourceWorkspaceId}
+                  onChange={(event) => setSourceWorkspaceId(event.target.value)}
+                  disabled={isLoading || cloneSources.length === 0}
+                  required
+                >
+                  {cloneSources.length === 0 ? (
+                    <option value="">No other workspaces available</option>
+                  ) : cloneSources.map((workspace) => (
+                    <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="modal-footer">
@@ -168,7 +226,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
             <button
               type="submit"
               className="btn-primary"
-              disabled={isLoading}
+              disabled={isLoading || (categorySetup.startsWith('clone_') && !sourceWorkspaceId)}
             >
               {isLoading ? (
                 <>
@@ -185,4 +243,3 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
     </div>
   );
 };
-

@@ -99,7 +99,11 @@ class WorkspaceService {
     name: string,
     description?: string,
     currency: string = 'INR',
-    userId?: string
+    userId?: string,
+    categorySetup: {
+      mode: 'default' | 'none' | 'clone_empty' | 'clone_allocations';
+      sourceWorkspaceId?: string;
+    } = { mode: 'default' }
   ): Promise<Workspace> {
     if (!supabase) {
       throw new Error('Workspace services are unavailable. Please contact support.');
@@ -110,6 +114,8 @@ class WorkspaceService {
       p_name: name.trim(),
       p_description: description?.trim() || null,
       p_currency: currency,
+      p_category_mode: categorySetup.mode,
+      p_source_workspace_id: categorySetup.sourceWorkspaceId || null,
     });
 
     if (rpcError) {

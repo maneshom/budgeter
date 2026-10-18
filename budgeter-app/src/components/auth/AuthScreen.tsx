@@ -74,8 +74,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           </h1>
           <p className="auth-subtitle">
             {mode === 'signin'
-              ? 'Enter your credentials to access your family workspace.'
-              : 'Start tracking household finances securely with your family.'}
+              ? 'Sign in to manage your budgets and expenses.'
+              : 'Create a workspace for any budget and start tracking expenses.'}
           </p>
         </div>
 
@@ -148,7 +148,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 id="auth-email"
                 type="email"
                 className="form-input has-prefix-icon"
-                placeholder="name@family.com"
+                placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}

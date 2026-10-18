@@ -1,6 +1,6 @@
-# MoneyUndo — Family Budgeting & Expense Tracking
+# MoneyUndo — Budgeting & Expense Tracking
 
-**MoneyUndo** is a modern, responsive budgeting and expense management app for families, with multi-workspace access and role-based permissions.
+**MoneyUndo** is a modern, responsive budgeting and expense management app for personal, shared, travel, project, and other spending needs, with multi-workspace access and role-based permissions.
 
 ---
 
@@ -13,7 +13,7 @@
 * **Role-Based Access Control (RBAC):**
   * **Owner (System-role):** Can create new workspaces. An Owner will only see and manage the workspaces they created (or workspaces they have been assigned to as members). Owners cannot see, update, or administer workspaces created by other owners.
   * **Admin (Workspace-scoped):** Can manage workspace budgets and invite/assign regular Members to workspaces they administer. Permissions are strictly scoped to their assigned workspace.
-  * **Member (Workspace-scoped):** Regular family user. Can view reports and record household expenses in assigned workspaces. Cannot manage members or workspaces.
+  * **Member (Workspace-scoped):** Can view reports and record expenses in assigned workspaces. Cannot manage members or workspaces.
 * **Workspace Isolation & Multi-Workspace Support:**
   * Workspaces belong to their creating owner (`owner_id`).
   * Interactive workspace switcher in the sidebar when a user belongs to more than one workspace.
@@ -22,6 +22,8 @@
 * **Workspace Budgets & Dynamic Categories:**
   * Each workspace has one budget period: monthly, yearly, or custom start/end dates.
   * Owners and workspace admins can create workspace-specific expense categories with allocation amounts.
+  * When creating a workspace, owners can use default categories, start with no categories, clone category names with zero allocations, or clone names and allocations from another accessible workspace.
+  * From workspace settings, owners and admins can also clone category names with zero allocations; existing categories and allocations remain unchanged.
   * Workspace totals can be fixed, automatically summed from category allocations, or capped so category allocations cannot exceed the workspace limit.
   * Budget and category progress compares workspace expenses dated within the selected period.
 * **Workspace Lifecycle:**
@@ -38,6 +40,9 @@
 * **Workspace Reports & Analytics:**
   * Select any workspace the user can access from the Reports page.
   * View spending and budget summary widgets, six-month spending trends, budget progress, and category-level spend with allocations.
+* **Installable App:**
+  * Install MoneyUndo from supported browsers on desktop and mobile devices.
+  * The app shell can load from its service-worker cache; viewing or changing account data still requires an internet connection.
 * **Recent Transactions List:**
   * Categorized transactions with distinct icons and colors, including workspace-defined categories.
   * Formatted amounts in INR aligned to the right with minus indicators (`- ₹2,500`).
@@ -104,7 +109,7 @@ VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
    * Sets up one `public.workspace_budgets` record and dynamic `public.workspace_categories` for each workspace, migrating legacy monthly limits.
    * Installs secure RPCs that enforce the workspace budget mode and category allocation rules.
    * Configures restrictive RLS policies preventing privilege escalation.
-   * Defines secure RPC functions: `create_workspace`, `delete_workspace`, `assign_workspace_member`, and `remove_workspace_member`.
+   * Defines secure RPC functions for workspace lifecycle, member assignment, budget management, category management, and category cloning.
 
 For an existing Supabase project, rerun the latest script after the app update. It backfills profiles for existing Auth users, promotes the earliest registered account to Owner only if no Owner exists, and links legacy workspaces that have no owner to that Owner. After the migration completes, sign out and sign back in so the app reloads your profile and workspace access.
 
