@@ -7,7 +7,7 @@ import {
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
-import type { DashboardSummary, Transaction } from '../types/expense';
+import type { DashboardSummary, Transaction, WorkspaceBudgetConfig } from '../types/expense';
 import { SummaryCard } from '../components/dashboard/SummaryCard';
 import { BudgetProgress } from '../components/dashboard/BudgetProgress';
 import { RecentTransactions } from '../components/dashboard/RecentTransactions';
@@ -15,6 +15,7 @@ import { getMonthlyOverviewTitle, getCurrentMonthName, getCurrentYear } from '..
 
 interface DashboardProps {
   summary: DashboardSummary;
+  budgetConfig: WorkspaceBudgetConfig | null;
   transactions: Transaction[];
   onDeleteTransaction: (id: string) => void;
   onOpenAddExpense: () => void;
@@ -23,6 +24,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({
   summary,
+  budgetConfig,
   transactions,
   onDeleteTransaction,
   onOpenAddExpense,
@@ -30,36 +32,49 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const currentMonth = getCurrentMonthName();
   const currentYear = getCurrentYear();
-  const overviewTitle = getMonthlyOverviewTitle();
+  const periodLabel = budgetConfig?.periodType === 'yearly'
+    ? `Yearly Overview ${currentYear}`
+    : budgetConfig?.periodType === 'custom'
+      ? 'Custom Period Overview'
+      : getMonthlyOverviewTitle();
+  const budgetPeriodLabel = budgetConfig?.periodType === 'yearly'
+    ? 'Planned for this year'
+    : budgetConfig?.periodType === 'custom'
+      ? 'Planned for this custom period'
+      : 'Planned for this month';
 
   return (
     <div className="page-container">
       {/* Monthly Overview Header */}
-      <section className="overview-header" aria-label="Monthly Financial Overview">
+      <section className="overview-header" aria-label="Workspace Budget Overview">
         <div className="overview-title-group">
-          <h2 className="overview-title">{overviewTitle}</h2>
+          <h2 className="overview-title">{periodLabel}</h2>
           <p className="overview-subtitle">
             Track your household finances in one place.
           </p>
         </div>
 
-        <div className="overview-badge" aria-label={`Current month is ${currentMonth} ${currentYear}`}>
+        <div className="overview-badge" aria-label={`Budget period: ${budgetPeriodLabel}`}>
           <Calendar size={14} />
           <span>
-            {currentMonth} {currentYear}
+            {budgetConfig?.periodType === 'yearly'
+              ? currentYear
+              : budgetConfig?.periodType === 'custom' && budgetConfig.startDate && budgetConfig.endDate
+                ? `${budgetConfig.startDate} – ${budgetConfig.endDate}`
+                : `${currentMonth} ${currentYear}`}
           </span>
         </div>
       </section>
 
       {/* Summary Cards */}
       <section className="summary-grid" aria-label="Key Financial Metrics">
-        {/* Card 1: Monthly Budget */}
+        {/* Card 1: Workspace Budget */}
         <SummaryCard
-          label="Monthly Budget"
-          amount={summary.monthlyBudget}
+          label="Workspace Budget"
+          amount={summary.workspaceBudget}
           icon={Wallet}
           iconVariant="purple"
-          subtitle="Planned for this month"
+          subtitle={budgetPeriodLabel}
           badge={{
             text: 'Target set',
             variant: 'neutral',
@@ -85,7 +100,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           amount={summary.remainingBalance}
           icon={PiggyBank}
           iconVariant={summary.isOverBudget ? 'red' : 'green'}
-          subtitle={summary.isOverBudget ? 'Exceeded monthly budget' : 'Remaining to spend'}
+          subtitle={summary.isOverBudget ? 'Exceeded workspace budget' : 'Remaining to spend'}
           badge={{
             text: summary.isOverBudget ? 'Over budget' : 'Within budget',
             variant: summary.isOverBudget ? 'danger' : 'success',
@@ -97,7 +112,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Budget Progress */}
       <BudgetProgress
         totalSpent={summary.totalSpent}
-        monthlyBudget={summary.monthlyBudget}
+        workspaceBudget={summary.workspaceBudget}
+        periodLabel={budgetPeriodLabel}
         spentPercentage={summary.spentPercentage}
         isOverBudget={summary.isOverBudget}
       />
@@ -112,4 +128,3 @@ export const Dashboard: React.FC<DashboardProps> = ({
     </div>
   );
 };
-

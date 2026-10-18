@@ -1,4 +1,4 @@
-name: Deploy SpendWise to GitHub Pages
+name: Deploy MoneyUndo to GitHub Pages
 
 on:
   push:
