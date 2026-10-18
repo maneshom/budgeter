@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   CalendarDays,
+  Copy,
   Loader2,
   Pencil,
   Trash2,
@@ -13,6 +14,7 @@ import type {
   WorkspaceBudgetCategory,
   WorkspaceBudgetConfig,
   WorkspaceBudgetMode,
+  Workspace,
 } from '../../types/expense';
 import { budgetService, getWorkspaceBudgetPeriod } from '../../services/budgetService';
 import { formatINR } from '../../utils/currency';
@@ -20,6 +22,7 @@ import type { Transaction } from '../../types/expense';
 
 interface WorkspaceBudgetManagerProps {
   workspaceId: string;
+  workspaces: Workspace[];
   transactions: Transaction[];
   canManage: boolean;
   onAddToast: (text: string, type?: 'success' | 'danger') => void;
@@ -36,6 +39,7 @@ const formatDate = (date: string) =>
 
 export const WorkspaceBudgetManager: React.FC<WorkspaceBudgetManagerProps> = ({
   workspaceId,
+  workspaces,
   transactions,
   canManage,
   onAddToast,
@@ -46,10 +50,16 @@ export const WorkspaceBudgetManager: React.FC<WorkspaceBudgetManagerProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [isCloningCategories, setIsCloningCategories] = useState(false);
+  const [sourceWorkspaceId, setSourceWorkspaceId] = useState('');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState('');
   const [categoryAmount, setCategoryAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const sourceWorkspaces = useMemo(
+    () => workspaces.filter((workspace) => workspace.id !== workspaceId),
+    [workspaces, workspaceId]
+  );
 
   const load = async () => {
     try {
@@ -71,6 +81,12 @@ export const WorkspaceBudgetManager: React.FC<WorkspaceBudgetManagerProps> = ({
   useEffect(() => {
     void load();
   }, [workspaceId]);
+
+  useEffect(() => {
+    if (!sourceWorkspaces.some((workspace) => workspace.id === sourceWorkspaceId)) {
+      setSourceWorkspaceId(sourceWorkspaces[0]?.id || '');
+    }
+  }, [sourceWorkspaces, sourceWorkspaceId]);
 
   const categoryTotal = useMemo(
     () => categories.reduce((total, category) => total + category.amount, 0),
@@ -185,6 +201,32 @@ export const WorkspaceBudgetManager: React.FC<WorkspaceBudgetManagerProps> = ({
     } catch (err) {
       console.error('Failed to delete category:', err);
       onAddToast(err instanceof Error ? err.message : 'Failed to delete category', 'danger');
+    }
+  };
+
+  const handleCloneCategories = async () => {
+    if (!sourceWorkspaceId || isCloningCategories) return;
+    setError(null);
+    setIsCloningCategories(true);
+    try {
+      const addedCount = await budgetService.cloneCategories(sourceWorkspaceId, workspaceId);
+      const [updatedConfig, updatedCategories] = await Promise.all([
+        budgetService.getWorkspaceBudget(workspaceId),
+        budgetService.getCategories(workspaceId),
+      ]);
+      setConfig(updatedConfig);
+      setCategories(updatedCategories);
+      onBudgetUpdated();
+      onAddToast(
+        addedCount > 0
+          ? `Added ${addedCount} categor${addedCount === 1 ? 'y' : 'ies'} with zero allocation. Existing categories were left unchanged.`
+          : 'No new categories to add. Matching categories were left unchanged.'
+      );
+    } catch (err) {
+      console.error('Failed to clone workspace categories:', err);
+      setError(err instanceof Error ? err.message : 'Failed to clone categories.');
+    } finally {
+      setIsCloningCategories(false);
     }
   };
 
@@ -323,6 +365,44 @@ export const WorkspaceBudgetManager: React.FC<WorkspaceBudgetManagerProps> = ({
         </div>
         <strong>{formatINR(computedAmount)} workspace total</strong>
       </div>
+
+      {canManage && sourceWorkspaces.length > 0 && (
+        <div className="budget-form">
+          <h4>Clone categories from another workspace</h4>
+          <p className="settings-section-desc">
+            New categories are added with zero allocation. Existing categories and allocations are unchanged.
+          </p>
+          <div className="budget-form-grid">
+            <label className="form-field">
+              <span className="form-label">Source workspace</span>
+              <select
+                className="form-select"
+                value={sourceWorkspaceId}
+                onChange={(event) => setSourceWorkspaceId(event.target.value)}
+                disabled={isCloningCategories}
+              >
+                {sourceWorkspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
+                ))}
+              </select>
+            </label>
+            <div className="form-field">
+              <span className="form-label">Action</span>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void handleCloneCategories()}
+                disabled={isCloningCategories || !sourceWorkspaceId}
+              >
+                {isCloningCategories
+                  ? <Loader2 size={16} className="animate-spin" />
+                  : <Copy size={16} />}
+                <span>{isCloningCategories ? 'Cloning categories...' : 'Clone categories'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {canManage && (
         <form className="budget-form" onSubmit={handleSaveCategory}>

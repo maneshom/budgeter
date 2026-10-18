@@ -283,10 +283,10 @@ export function App() {
   // --------------------------------------------------------------------------
   if (!session || !currentUser) {
     return (
-      <div className="app-layout">
+      <>
         <AuthScreen onAuthSuccess={() => {}} />
         <Toast toasts={toasts} onDismiss={dismissToast} />
-      </div>
+      </>
     );
   }
 
@@ -308,8 +308,8 @@ export function App() {
           </h2>
           <p className="auth-subtitle">
             {isOwner
-              ? 'You have Owner privileges. Create your first family workspace to start tracking household finances.'
-              : 'You are signed in as a Member, but have not been assigned to any workspace yet. Please contact your family admin to invite you.'}
+              ? 'You have Owner privileges. Create your first workspace to start managing budgets and expenses.'
+              : 'You are signed in as a Member, but have not been assigned to a workspace yet. Please contact a workspace owner or admin to invite you.'}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
@@ -342,6 +342,7 @@ export function App() {
           onClose={() => setIsCreateWorkspaceOpen(false)}
           onCreated={handleWorkspaceCreated}
           userId={currentUser.id}
+          workspaces={workspaces}
         />
 
         <Toast toasts={toasts} onDismiss={dismissToast} />
@@ -387,7 +388,7 @@ export function App() {
               ? `All transactions recorded in ${activeWorkspace.name}.`
               : activeTab === 'reports'
               ? 'Spending analytics and budget forecasts.'
-              : 'Workspace preferences, role permissions, and family members.'
+              : 'Workspace preferences, role permissions, and members.'
           }
           onOpenAddExpense={() => setIsAddExpenseOpen(true)}
           onToggleMobileMenu={() => setMobileMenuOpen((prev) => !prev)}
@@ -436,6 +437,7 @@ export function App() {
                   activeWorkspace={activeWorkspace}
                   currentUser={currentUser}
                   transactions={transactions}
+                  workspaces={workspaces}
                   onOpenCreateWorkspace={() => setIsCreateWorkspaceOpen(true)}
                   onDeleteWorkspace={handleDeleteWorkspace}
                   onBudgetUpdated={() => loadWorkspaceData(activeWorkspace.id)}
@@ -462,6 +464,7 @@ export function App() {
         onClose={() => setIsCreateWorkspaceOpen(false)}
         onCreated={handleWorkspaceCreated}
         userId={currentUser.id}
+        workspaces={workspaces}
       />
 
       {/* Feedback Toast */}

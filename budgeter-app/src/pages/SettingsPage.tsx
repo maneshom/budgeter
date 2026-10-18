@@ -17,6 +17,7 @@ interface SettingsPageProps {
   activeWorkspace: Workspace;
   currentUser: UserProfile;
   transactions: Transaction[];
+  workspaces: Workspace[];
   onOpenCreateWorkspace: () => void;
   onDeleteWorkspace: (workspace: Workspace) => Promise<void>;
   onWorkspaceUpdated?: () => void;
@@ -28,6 +29,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   activeWorkspace,
   currentUser,
   transactions,
+  workspaces,
   onOpenCreateWorkspace,
   onDeleteWorkspace,
   onWorkspaceUpdated,
@@ -141,7 +143,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           </div>
           <h2 className="overview-title">{activeWorkspace.name} Settings</h2>
           <p className="overview-subtitle">
-            Manage your workspace configuration, member permissions, and family access.
+            Manage your workspace configuration, member permissions, and access.
           </p>
         </div>
 
@@ -182,6 +184,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
       <WorkspaceBudgetManager
         workspaceId={activeWorkspace.id}
+        workspaces={workspaces}
         transactions={transactions}
         canManage={canManageMembers}
         onAddToast={onAddToast}

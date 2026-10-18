@@ -59,7 +59,7 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
             <Receipt className="empty-icon" />
             <h3 className="empty-title">No transactions yet</h3>
             <p className="empty-desc">
-              Get started by logging your first family expense for this month.
+              Get started by logging your first expense for this month.
             </p>
             <button
               type="button"
@@ -86,4 +86,3 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     </section>
   );
 };
-

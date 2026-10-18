@@ -50,7 +50,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="overview-title-group">
           <h2 className="overview-title">{periodLabel}</h2>
           <p className="overview-subtitle">
-            Track your household finances in one place.
+            Keep your budget and spending on track in one place.
           </p>
         </div>
 

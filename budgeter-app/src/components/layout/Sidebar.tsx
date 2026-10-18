@@ -138,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             ) : (
               <span className={`brand-badge ${isOwner ? 'owner' : ''}`}>
-                {isOwner ? 'Owner' : 'Family'}
+                {isOwner ? 'Owner' : 'Workspace'}
               </span>
             )}
           </div>

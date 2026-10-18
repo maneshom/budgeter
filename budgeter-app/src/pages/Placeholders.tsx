@@ -54,7 +54,7 @@ export const TransactionsPage: React.FC<TransactionsPageProps> = ({
             </button>
             <span className="overview-badge">All Transactions</span>
           </div>
-          <h2 className="overview-title">Household Transaction History</h2>
+          <h2 className="overview-title">Workspace Transaction History</h2>
           <p className="overview-subtitle">
             Showing {filtered.length} of {transactions.length} total records • Filtered sum: {formatINR(totalFilteredAmount)}
           </p>
@@ -139,19 +139,19 @@ export const SettingsPlaceholder: React.FC<{ onBackToDashboard: () => void }> = 
         <div style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
           <Settings size={24} />
         </div>
-        <h2 className="placeholder-title">Family & Workspace Settings</h2>
+        <h2 className="placeholder-title">Workspace Settings</h2>
         <p className="placeholder-desc">
-          Manage family members, invite co-managers, and configure workspace budgets and categories.
+          Manage workspace members, invite co-managers, and configure budgets and categories.
         </p>
 
         <div className="feature-checklist">
           <div className="feature-item">
             <ShieldCheck size={18} className="feature-icon" />
-            <span>Role-based access controls (Family Admin, Member, Child)</span>
+            <span>Role-based access controls for workspace members</span>
           </div>
           <div className="feature-item">
             <Users2 size={18} className="feature-icon" />
-            <span>Invite family members via email and link WhatsApp notifications</span>
+            <span>Invite people to collaborate on a workspace budget</span>
           </div>
           <div className="feature-item">
             <Sparkles size={18} className="feature-icon" />

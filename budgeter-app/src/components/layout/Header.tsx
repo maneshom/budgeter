@@ -1,5 +1,6 @@
 import React from 'react';
 import { Menu, Plus } from 'lucide-react';
+import { PwaInstallButton } from './PwaInstallButton';
 
 interface HeaderProps {
   title?: string;
@@ -32,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="header-actions">
+        <PwaInstallButton />
         <button
           type="button"
           className="btn-primary"

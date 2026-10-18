@@ -218,7 +218,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               Add New Expense
             </h2>
             <p className="modal-subtitle">
-              Log household spending with category and amount
+              Record spending with a category and amount
             </p>
           </div>
           <button
