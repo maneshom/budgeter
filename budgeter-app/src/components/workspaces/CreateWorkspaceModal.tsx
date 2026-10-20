@@ -11,6 +11,7 @@ interface CreateWorkspaceModalProps {
   onCreated: (workspace: Workspace) => void;
   userId?: string;
   workspaces: Workspace[];
+  isOfflineMode?: boolean;
 }
 
 export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
@@ -19,6 +20,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
   onCreated,
   userId,
   workspaces,
+  isOfflineMode = false,
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -58,7 +60,8 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
         {
           mode: categorySetup,
           sourceWorkspaceId: categorySetup.startsWith('clone_') ? sourceWorkspaceId : undefined,
-        }
+        },
+        isOfflineMode
       );
       setName('');
       setDescription('');
@@ -68,7 +71,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error('Failed to create workspace:', err);
-      setError(err.message || 'Failed to create workspace. Only owners are authorized.');
+      setError(err.message || 'Failed to create workspace.');
     } finally {
       setIsLoading(false);
     }
@@ -96,7 +99,9 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
               Create New Workspace
             </h2>
             <p className="modal-subtitle">
-              Set up a workspace for any budget or spending goal
+              {isOfflineMode
+                ? 'Creating a single-user offline workspace stored locally on this device'
+                : 'Set up a shared cloud workspace for any budget or spending goal'}
             </p>
           </div>
           <button
@@ -129,7 +134,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                   id="ws-name"
                   type="text"
                   className="form-input has-prefix-icon"
-                  placeholder="e.g. Personal, Travel, or Project Budget"
+                  placeholder="e.g. Personal, Travel, or Secret Stash"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   maxLength={60}
@@ -147,7 +152,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                 id="ws-description"
                 type="text"
                 className="form-input"
-                placeholder="e.g. Shared expenses for parents & siblings"
+                placeholder="e.g. Everyday pocket expenses"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={100}

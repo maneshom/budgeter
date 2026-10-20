@@ -1,51 +1,55 @@
-/* MoneyUndo design system tokens & base styles */
+/* MoneyUndo design system tokens & base styles - High Contrast & Senior Friendly */
 :root {
-  /* Brand Palette - Purple Primary */
-  --primary: #7c3aed;
-  --primary-hover: #6d28d9;
-  --primary-active: #5b21b6;
+  /* Brand Palette - Deep Purple Primary (High contrast against white, AAA standard) */
+  --primary: #6d28d9;
+  --primary-hover: #5b21b6;
+  --primary-active: #4c1d95;
   --primary-light: #f5f3ff;
   --primary-tint: #ede9fe;
-  --primary-border: #ddd6fe;
+  --primary-border: #c4b5fd;
 
-  /* Semantic Status Colors */
-  --success: #10b981;
-  --success-dark: #059669;
-  --success-light: #ecfdf5;
-  --success-border: #a7f3d0;
+  /* Semantic Status Colors (Rich, dark, legible, >5:1 contrast against white) */
+  --success: #15803d;
+  --success-dark: #166534;
+  --success-light: #f0fdf4;
+  --success-border: #86efac;
 
-  --warning: #f59e0b;
-  --warning-dark: #d97706;
+  --warning: #b45309;
+  --warning-dark: #92400e;
   --warning-light: #fffbeb;
-  --warning-border: #fde68a;
+  --warning-border: #fcd34d;
 
-  --danger: #ef4444;
-  --danger-dark: #dc2626;
+  --danger: #b91c1c;
+  --danger-dark: #991b1b;
   --danger-light: #fef2f2;
-  --danger-border: #fecaca;
+  --danger-border: #fca5a5;
 
-  /* Neutrals */
-  --bg-app: #f8fafc;
+  /* Neutrals - High Contrast & Glare Free */
+  --bg-app: #f1f5f9;
   --bg-card: #ffffff;
-  --bg-card-hover: #fafafa;
-  --bg-subtle: #f1f5f9;
-  --bg-muted: #e2e8f0;
+  --bg-card-hover: #f8fafc;
+  --bg-subtle: #e2e8f0;
+  --bg-muted: #cbd5e1;
 
+  /* Typography - Crisp, dark, no faint washed-out grays (WCAG AAA compliant) */
   --text-main: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
-  --text-tertiary: #94a3b8;
+  --text-secondary: #1e293b;
+  --text-muted: #334155;
+  --text-tertiary: #475569;
   --text-inverse: #ffffff;
 
-  --border-subtle: #e2e8f0;
-  --border-hover: #cbd5e1;
+  /* High Visibility Borders - Crisp & Distinct */
+  --border-subtle: #cbd5e1;
+  --border-hover: #94a3b8;
+  --border-strong: #64748b;
+  --border-focus: #6d28d9;
 
-  /* Elevation Shadows */
-  --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
-  --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.07), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
-  --shadow-modal: 0 20px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+  /* Elevation Shadows - Distinct Depth */
+  --shadow-xs: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
+  --shadow-sm: 0 2px 4px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 8px -1px rgba(15, 23, 42, 0.1), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 12px 20px -3px rgba(15, 23, 42, 0.12), 0 4px 6px -4px rgba(15, 23, 42, 0.06);
+  --shadow-modal: 0 24px 38px -5px rgba(15, 23, 42, 0.22), 0 10px 16px -6px rgba(15, 23, 42, 0.12);
 
   /* Radii */
   --radius-sm: 8px;
@@ -54,8 +58,8 @@
   --radius-full: 9999px;
 
   /* Dimensions */
-  --sidebar-width: 264px;
-  --header-height: 72px;
+  --sidebar-width: 270px;
+  --header-height: 74px;
 
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -70,7 +74,8 @@
 
 html {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-size: 16px;
+  line-height: 1.6;
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -83,6 +88,8 @@ body {
   background-color: var(--bg-app);
   color: var(--text-main);
   overflow-x: hidden;
+  font-size: 1rem;
+  line-height: 1.6;
 }
 
 input, button, select, textarea {
@@ -103,6 +110,6 @@ a {
 
 /* Accessibility focus ring */
 :focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 3px solid var(--primary);
   outline-offset: 2px;
 }

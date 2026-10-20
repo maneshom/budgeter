@@ -40,9 +40,11 @@
 * **Workspace Reports & Analytics:**
   * Select any workspace the user can access from the Reports page.
   * View spending and budget summary widgets, six-month spending trends, budget progress, and category-level spend with allocations.
-* **Installable App:**
-  * Install MoneyUndo from supported browsers on desktop and mobile devices.
-  * The app shell can load from its service-worker cache; viewing or changing account data still requires an internet connection.
+* **Clean Separation of Offline & Cloud Modes:**
+  * **Login Screen Mode Divergence:** Users choose their mode directly on the entry screen: **Cloud Account** or **Offline Mode (Single User)**.
+  * **Offline Mode (100% On-Device):** Stores workspace settings, categories, budget allocations, and transactions strictly on the local device (IndexedDB / LocalStorage). Operates completely standalone with zero network dependencies, maximum privacy, and zero latency.
+  * **Cloud Mode (Multi-User Synced):** Hosted on Supabase Postgres database. Enables family collaboration, role-based access (Owner, Admin, Member), and real-time synchronization across devices.
+  * **Easy Switching:** Offline users can switch to Cloud mode anytime with one click from the sidebar or settings to create or sign into an online account.
 * **Recent Transactions List:**
   * Categorized transactions with distinct icons and colors, including workspace-defined categories.
   * Formatted amounts in INR aligned to the right with minus indicators (`- ₹2,500`).

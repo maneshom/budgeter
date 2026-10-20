@@ -8,6 +8,7 @@ import type {
   UserProfile,
 } from '../types/expense';
 import { getTodayDateString } from '../utils/date';
+import { offlineStorage } from './offlineStorage';
 
 interface DatabaseTransactionRow {
   id: string;
@@ -42,15 +43,24 @@ function mapRowToTransaction(row: DatabaseTransactionRow): Transaction {
 
 class ExpenseService {
   /**
-   * Retrieves all transactions scoped strictly to the specified workspace.
+   * Retrieves transactions strictly scoped to the active application mode.
    */
-  public async getTransactions(workspaceId: string): Promise<Transaction[]> {
-    if (!supabase) {
-      throw new Error('Expense services are unavailable. Please contact support.');
-    }
-
+  public async getTransactions(
+    workspaceId: string,
+    isOfflineMode: boolean = false
+  ): Promise<Transaction[]> {
     if (!workspaceId) {
       return [];
+    }
+
+    // 1. OFFLINE MODE: Pure device storage
+    if (isOfflineMode || offlineStorage.isLocalWorkspace(workspaceId)) {
+      return offlineStorage.getLocalTransactions(workspaceId);
+    }
+
+    // 2. CLOUD MODE: Supabase database
+    if (!supabase) {
+      throw new Error('Expense services are unavailable. Please contact support.');
     }
 
     const { data, error } = await supabase
@@ -71,23 +81,45 @@ class ExpenseService {
   }
 
   /**
-   * Adds an expense transaction scoped to the specified workspace and user.
+   * Adds an expense transaction strictly in offline storage or cloud.
    */
   public async addTransaction(
     workspaceId: string,
     payload: NewExpensePayload,
-    user: UserProfile
+    user: UserProfile,
+    isOfflineMode: boolean = false
   ): Promise<Transaction> {
-    if (!supabase) {
-      throw new Error('Expense services are unavailable. Please contact support.');
-    }
-
     if (!workspaceId) {
       throw new Error('No active workspace selected');
     }
 
     const roundedAmount = Math.round(payload.amount * 100) / 100;
     const date = payload.date || getTodayDateString();
+
+    // 1. OFFLINE MODE: Save to IndexedDB/LocalStorage
+    if (isOfflineMode || offlineStorage.isLocalWorkspace(workspaceId)) {
+      const localTx: Transaction = {
+        id: `local-tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: payload.name.trim(),
+        amount: roundedAmount,
+        category: payload.category,
+        date,
+        workspaceId,
+        createdBy: user.name,
+        createdById: user.id,
+        status: 'approved',
+        notes: payload.notes?.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      };
+
+      await offlineStorage.saveLocalTransaction(localTx);
+      return localTx;
+    }
+
+    // 2. CLOUD MODE: Save to Supabase
+    if (!supabase) {
+      throw new Error('Expense services are unavailable. Please contact support.');
+    }
 
     const newRow = {
       workspace_id: workspaceId,
@@ -116,9 +148,20 @@ class ExpenseService {
   }
 
   /**
-   * Deletes a transaction scoped to the specified workspace.
+   * Deletes a transaction from offline storage or cloud.
    */
-  public async deleteTransaction(workspaceId: string, id: string): Promise<boolean> {
+  public async deleteTransaction(
+    workspaceId: string,
+    id: string,
+    isOfflineMode: boolean = false
+  ): Promise<boolean> {
+    // 1. OFFLINE MODE
+    if (isOfflineMode || offlineStorage.isLocalWorkspace(workspaceId)) {
+      await offlineStorage.deleteLocalTransaction(workspaceId, id);
+      return true;
+    }
+
+    // 2. CLOUD MODE
     if (!supabase) {
       throw new Error('Expense services are unavailable. Please contact support.');
     }
@@ -145,7 +188,7 @@ class ExpenseService {
     const roundedSpent = Math.round(totalSpent * 100) / 100;
     const remainingBalance = Math.round((budgetAmount - roundedSpent) * 100) / 100;
     const spentPercentage = budgetAmount > 0
-      ? Math.round((roundedSpent / budgetAmount) * 1000) / 10
+      ? Math.round((roundedSpent / budgetAmount) * 1000) / 1000
       : 0;
     const isOverBudget = remainingBalance < 0;
 
@@ -153,7 +196,7 @@ class ExpenseService {
       workspaceBudget: budgetAmount,
       totalSpent: roundedSpent,
       remainingBalance,
-      spentPercentage,
+      spentPercentage: Math.round(spentPercentage * 1000) / 10,
       isOverBudget,
       transactionCount: transactions.length,
     };

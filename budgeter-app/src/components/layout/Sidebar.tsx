@@ -10,6 +10,7 @@ import {
   Check,
   Plus,
   LogOut,
+  HardDrive,
 } from 'lucide-react';
 import type { Workspace, UserProfile } from '../../types/expense';
 import { MoneyUndoMark } from '../brand/MoneyUndoMark';
@@ -25,6 +26,8 @@ interface SidebarProps {
   onOpenCreateWorkspace: () => void;
   currentUser: UserProfile;
   onSignOut: () => void;
+  isOfflineMode?: boolean;
+  onSwitchToCloud?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -38,6 +41,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCreateWorkspace,
   currentUser,
   onSignOut,
+  isOfflineMode = false,
+  onSwitchToCloud,
 }) => {
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -137,8 +142,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <X size={18} />
               </button>
             ) : (
-              <span className={`brand-badge ${isOwner ? 'owner' : ''}`}>
-                {isOwner ? 'Owner' : 'Workspace'}
+              <span className={`brand-badge ${isOfflineMode ? 'offline' : isOwner ? 'owner' : ''}`}>
+                {isOfflineMode ? 'Offline' : isOwner ? 'Owner' : 'Workspace'}
               </span>
             )}
           </div>
@@ -155,12 +160,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="workspace-info">
                 <div className="workspace-avatar" aria-hidden="true">
-                  <Users size={14} />
+                  {workspace.storageType === 'local' || workspace.id.startsWith('local-') ? (
+                    <HardDrive size={14} />
+                  ) : (
+                    <Users size={14} />
+                  )}
                 </div>
                 <div className="workspace-text">
                   <span className="workspace-title">{workspace.name}</span>
                   <span className="workspace-sub">
-                    {workspace.membersCount} {workspace.membersCount === 1 ? 'member' : 'members'} • {workspace.currency}
+                    {workspace.storageType === 'local' || workspace.id.startsWith('local-')
+                      ? `Single User • Local • ${workspace.currency}`
+                      : `${workspace.membersCount} ${workspace.membersCount === 1 ? 'member' : 'members'} • ${workspace.currency}`}
                   </span>
                 </div>
               </div>
@@ -195,8 +206,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         role="menuitem"
                       >
                         <div className="ws-drop-left">
-                          <span className="ws-drop-name">{ws.name}</span>
-                          <span className="ws-drop-role">{ws.role.toUpperCase()}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="ws-drop-name">{ws.name}</span>
+                            {ws.storageType === 'local' || ws.id.startsWith('local-') ? (
+                              <span className="ws-drop-storage-pill local">LOCAL</span>
+                            ) : (
+                              <span className="ws-drop-storage-pill cloud">CLOUD</span>
+                            )}
+                          </div>
+                          <span className="ws-drop-role">
+                            {ws.storageType === 'local' || ws.id.startsWith('local-')
+                              ? 'SINGLE USER'
+                              : ws.role.toUpperCase()}
+                          </span>
                         </div>
                         {isSelected && <Check size={14} className="ws-drop-check" />}
                       </button>
@@ -260,8 +282,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="user-name" title={currentUser.name}>
                 {currentUser.name}
               </span>
-              <span className="user-role" title={currentUser.email}>
-                {workspace.role === 'owner' || isOwner
+              <span className="user-role" title={isOfflineMode ? 'Saved strictly on this device' : currentUser.email}>
+                {isOfflineMode
+                  ? 'Single-User (Local)'
+                  : workspace.role === 'owner' || isOwner
                   ? 'Owner'
                   : workspace.role === 'admin'
                   ? 'Admin'
@@ -271,9 +295,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               type="button"
               className="btn-signout"
-              onClick={onSignOut}
-              title="Sign Out"
-              aria-label="Sign out of MoneyUndo"
+              onClick={isOfflineMode && onSwitchToCloud ? onSwitchToCloud : onSignOut}
+              title={isOfflineMode ? 'Switch to Cloud Account' : 'Sign Out'}
+              aria-label={isOfflineMode ? 'Switch to Cloud Account' : 'Sign out of MoneyUndo'}
             >
               <LogOut size={16} />
             </button>

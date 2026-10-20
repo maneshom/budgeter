@@ -1,12 +1,39 @@
 import { supabase } from './supabase';
 import type { Workspace, WorkspaceMember, WorkspaceRole } from '../types/expense';
+import { offlineStorage } from './offlineStorage';
+import { budgetService } from './budgetService';
+
+const DEFAULT_CATEGORIES = [
+  'Food & Shopping',
+  'Housing',
+  'Utilities',
+  'Transport',
+  'Food & Dining',
+  'Healthcare',
+  'Education',
+  'Entertainment',
+  'Other',
+];
 
 class WorkspaceService {
   /**
-   * Fetches all workspaces accessible by the given user.
-   * If the user is a global Owner, they can access workspaces they own as well as workspaces they are members of.
+   * Fetches workspaces strictly scoped to the active application mode (Offline or Cloud).
    */
-  public async getUserWorkspaces(userId: string, _isGlobalOwner?: boolean): Promise<Workspace[]> {
+  public async getUserWorkspaces(
+    userId: string,
+    _isGlobalOwner?: boolean,
+    isOfflineMode: boolean = false
+  ): Promise<Workspace[]> {
+    // ------------------------------------------------------------------------
+    // OFFLINE MODE: Strictly local device workspaces
+    // ------------------------------------------------------------------------
+    if (isOfflineMode || userId === 'local-owner') {
+      return offlineStorage.getLocalWorkspaces();
+    }
+
+    // ------------------------------------------------------------------------
+    // CLOUD MODE: Strictly Supabase cloud workspaces
+    // ------------------------------------------------------------------------
     if (!supabase) {
       throw new Error('Workspace services are unavailable. Please contact support.');
     }
@@ -27,7 +54,7 @@ class WorkspaceService {
       memberRoleByWsId.set(row.workspace_id, row.role as WorkspaceRole);
     });
 
-    // 2. Fetch accessible workspaces
+    // 2. Fetch accessible cloud workspaces
     const { data: workspacesData, error: wsErr } = await supabase
       .from('workspaces')
       .select('*')
@@ -42,7 +69,7 @@ class WorkspaceService {
       return [];
     }
 
-    // 3. For each workspace, fetch active member counts
+    // 3. Member counts
     const workspaceIds = workspacesData.map((w) => w.id);
     const { data: allMembers } = await supabase
       .from('workspace_members')
@@ -60,13 +87,10 @@ class WorkspaceService {
       const isCreator = ws.owner_id === userId;
       const assignedRole = memberRoleByWsId.get(ws.id);
 
-      // Strict workspace isolation:
-      // Users (including system owners) only see workspaces they created or are assigned members of.
       if (!isCreator && !assignedRole) {
         continue;
       }
 
-      // Determine user's effective role in this specific workspace
       let role: WorkspaceRole = 'member';
       if (isCreator) {
         role = 'owner';
@@ -74,7 +98,6 @@ class WorkspaceService {
         role = assignedRole;
       }
 
-      // Member count: assigned members + 1 (for owner)
       const membersCount = (countByWsId.get(ws.id) || 0) + (ws.owner_id ? 1 : 0);
 
       result.push({
@@ -86,6 +109,8 @@ class WorkspaceService {
         role,
         membersCount: Math.max(membersCount, 1),
         createdAt: ws.created_at,
+        storageType: 'cloud',
+        syncStatus: 'synced',
       });
     }
 
@@ -93,7 +118,7 @@ class WorkspaceService {
   }
 
   /**
-   * Creates a new workspace. Allowed only for users with the Owner role.
+   * Creates a workspace in either Offline mode (on-device) or Cloud mode (Supabase).
    */
   public async createWorkspace(
     name: string,
@@ -103,16 +128,78 @@ class WorkspaceService {
     categorySetup: {
       mode: 'default' | 'none' | 'clone_empty' | 'clone_allocations';
       sourceWorkspaceId?: string;
-    } = { mode: 'default' }
+    } = { mode: 'default' },
+    isOfflineMode: boolean = false
   ): Promise<Workspace> {
+    const cleanName = name.trim();
+    const cleanDesc = description?.trim() || undefined;
+
+    // ------------------------------------------------------------------------
+    // OFFLINE MODE: Save to local device
+    // ------------------------------------------------------------------------
+    if (isOfflineMode || userId === 'local-owner') {
+      const localId = `local-ws-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const localWorkspace: Workspace = {
+        id: localId,
+        name: cleanName,
+        description: cleanDesc,
+        currency,
+        ownerId: 'local-owner',
+        role: 'owner',
+        membersCount: 1,
+        createdAt: new Date().toISOString(),
+        storageType: 'local',
+        syncStatus: 'local_only',
+      };
+
+      await offlineStorage.saveLocalWorkspace(localWorkspace);
+
+      // Default budget
+      await offlineStorage.saveLocalBudget({
+        id: `local-budget-${Date.now()}`,
+        workspaceId: localId,
+        amount: 50000,
+        mode: 'fixed',
+        periodType: 'monthly',
+      });
+
+      // Categories setup
+      if (categorySetup.mode === 'default') {
+        const initialCategories = DEFAULT_CATEGORIES.map((catName, index) => ({
+          id: `local-cat-${Date.now()}-${index}`,
+          workspaceId: localId,
+          name: catName,
+          amount: 0,
+        }));
+        await offlineStorage.setLocalCategories(localId, initialCategories);
+      } else if (categorySetup.mode.startsWith('clone_') && categorySetup.sourceWorkspaceId) {
+        try {
+          const sourceCats = await budgetService.getCategories(categorySetup.sourceWorkspaceId, true);
+          const cloned = sourceCats.map((sc, index) => ({
+            id: `local-cat-${Date.now()}-${index}`,
+            workspaceId: localId,
+            name: sc.name,
+            amount: categorySetup.mode === 'clone_allocations' ? sc.amount : 0,
+          }));
+          await offlineStorage.setLocalCategories(localId, cloned);
+        } catch (cloneErr) {
+          console.warn('Could not clone categories:', cloneErr);
+        }
+      }
+
+      return localWorkspace;
+    }
+
+    // ------------------------------------------------------------------------
+    // CLOUD MODE: Save to Supabase
+    // ------------------------------------------------------------------------
     if (!supabase) {
       throw new Error('Workspace services are unavailable. Please contact support.');
     }
 
-    // Try secure RPC first
     const { data: rpcData, error: rpcError } = await supabase.rpc('create_workspace', {
-      p_name: name.trim(),
-      p_description: description?.trim() || null,
+      p_name: cleanName,
+      p_description: cleanDesc || null,
       p_currency: currency,
       p_category_mode: categorySetup.mode,
       p_source_workspace_id: categorySetup.sourceWorkspaceId || null,
@@ -128,21 +215,33 @@ class WorkspaceService {
 
     return {
       id: rpcData.workspace_id as string,
-      name: name.trim(),
-      description: description?.trim(),
+      name: cleanName,
+      description: cleanDesc,
       currency,
       ownerId: userId,
       role: 'owner',
       membersCount: 1,
+      createdAt: new Date().toISOString(),
+      storageType: 'cloud',
+      syncStatus: 'synced',
     };
   }
 
-  public async deleteWorkspace(workspaceId: string): Promise<void> {
-    if (!supabase) {
-      throw new Error('Workspace services are unavailable. Please contact support.');
-    }
+  /**
+   * Deletes a workspace from local storage or cloud.
+   */
+  public async deleteWorkspace(workspaceId: string, isOfflineMode: boolean = false): Promise<void> {
     if (!workspaceId) {
       throw new Error('No workspace selected');
+    }
+
+    if (isOfflineMode || offlineStorage.isLocalWorkspace(workspaceId)) {
+      await offlineStorage.deleteLocalWorkspace(workspaceId);
+      return;
+    }
+
+    if (!supabase) {
+      throw new Error('Workspace services are unavailable. Please contact support.');
     }
 
     const { data, error } = await supabase.rpc('delete_workspace', {
@@ -159,9 +258,26 @@ class WorkspaceService {
   }
 
   /**
-   * Fetches all members of a workspace, including the workspace owner.
+   * Fetches all members of a workspace.
    */
-  public async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
+  public async getWorkspaceMembers(
+    workspaceId: string,
+    isOfflineMode: boolean = false
+  ): Promise<WorkspaceMember[]> {
+    if (isOfflineMode || offlineStorage.isLocalWorkspace(workspaceId)) {
+      return [
+        {
+          id: `local-member-${workspaceId}`,
+          workspaceId,
+          userId: 'local-owner',
+          name: 'You (Offline User)',
+          email: 'Stored locally on this device',
+          role: 'owner',
+          createdAt: new Date().toISOString(),
+        },
+      ];
+    }
+
     if (!supabase) return [];
 
     // 1. Get workspace owner
@@ -223,7 +339,6 @@ class WorkspaceService {
       });
 
       for (const row of memberRows) {
-        // Skip if owner is also in workspace_members to avoid duplicate listing
         if (row.user_id === wsData?.owner_id) continue;
 
         const prof = profileById.get(row.user_id);
@@ -243,20 +358,23 @@ class WorkspaceService {
   }
 
   /**
-   * Assigns an existing registered user to the workspace.
+   * Assigns an existing registered user to the workspace (Cloud mode only).
    */
   public async assignMember(
     workspaceId: string,
     email: string,
     role: 'admin' | 'member'
   ): Promise<{ success: boolean; message: string }> {
+    if (offlineStorage.isLocalWorkspace(workspaceId)) {
+      throw new Error('Offline mode is single-user only. Switch to Cloud mode to collaborate with family members.');
+    }
+
     if (!supabase) {
       throw new Error('Workspace services are unavailable. Please contact support.');
     }
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Call secure RPC
     const { data, error } = await supabase.rpc('assign_workspace_member', {
       p_workspace_id: workspaceId,
       p_email: cleanEmail,
@@ -278,9 +396,13 @@ class WorkspaceService {
   }
 
   /**
-   * Removes a member from the workspace.
+   * Removes a member from the workspace (Cloud mode only).
    */
   public async removeMember(workspaceId: string, targetUserId: string): Promise<boolean> {
+    if (offlineStorage.isLocalWorkspace(workspaceId)) {
+      throw new Error('Cannot remove members in offline single-user mode.');
+    }
+
     if (!supabase) return false;
 
     const { error } = await supabase.rpc('remove_workspace_member', {
@@ -289,7 +411,6 @@ class WorkspaceService {
     });
 
     if (error) {
-      // Fallback direct delete
       const { error: directErr } = await supabase
         .from('workspace_members')
         .delete()
