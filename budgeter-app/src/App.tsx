@@ -15,6 +15,7 @@ import { expenseService } from './services/expenseService';
 import { authService } from './services/authService';
 import { workspaceService } from './services/workspaceService';
 import { budgetService, getWorkspaceBudgetPeriod } from './services/budgetService';
+import { offlineStorage } from './services/offlineStorage';
 import { supabase } from './services/supabase';
 import type {
   NewExpensePayload,
@@ -24,14 +25,42 @@ import type {
   WorkspaceBudgetConfig,
   WorkspaceBudgetCategory,
 } from './types/expense';
-import type { Session } from '@supabase/supabase-js';
 import { Building, Plus, LogOut, Loader2 } from 'lucide-react';
 
+const OFFLINE_USER: UserProfile = {
+  id: 'local-owner',
+  name: 'Offline User',
+  email: 'offline@device.local',
+  systemRole: 'owner',
+};
+
 export function App() {
+  // Application Mode: 'cloud' | 'offline' | null
+  const [appMode, setAppMode] = useState<'cloud' | 'offline' | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('moneyundo_app_mode');
+      if (saved === 'offline' || saved === 'cloud') {
+        return saved;
+      }
+    }
+    return null;
+  });
+
+  const isOfflineMode = appMode === 'offline';
+
   // Auth & Session State
-  const [session, setSession] = useState<Session | null>(null);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('moneyundo_app_mode') === 'offline') {
+      return OFFLINE_USER;
+    }
+    return null;
+  });
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+
+  // Network State (for Cloud mode alerts)
+  const [isOnline, setIsOnline] = useState<boolean>(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
 
   // App Navigation & UI State
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -57,20 +86,28 @@ export function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // 1. Initial Session Check & Auth Listener
+  // 1. Initial Session Check & Live Auth Listener
   useEffect(() => {
+    // If user has chosen offline mode, bypass Supabase entirely
+    if (appMode === 'offline') {
+      setCurrentUser(OFFLINE_USER);
+      setIsAuthLoading(false);
+      return;
+    }
+
     if (!supabase) {
       setIsAuthLoading(false);
       return;
     }
 
-    // Check existing session
+    // Check existing cloud session
     authService.getSession().then(async (initialSession) => {
-      setSession(initialSession);
       if (initialSession?.user) {
         try {
           const profile = await authService.getProfile(initialSession.user);
           setCurrentUser(profile);
+          setAppMode('cloud');
+          localStorage.setItem('moneyundo_app_mode', 'cloud');
         } catch (err) {
           console.error('Error fetching initial profile:', err);
         }
@@ -78,15 +115,16 @@ export function App() {
       setIsAuthLoading(false);
     });
 
-    // Listen to live auth changes (login, logout, token refresh)
+    // Listen to live cloud auth changes (login, logout, token refresh)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession);
       if (newSession?.user) {
         try {
           const profile = await authService.getProfile(newSession.user);
           setCurrentUser(profile);
+          setAppMode('cloud');
+          localStorage.setItem('moneyundo_app_mode', 'cloud');
         } catch (err) {
           console.error('Error on auth state change:', err);
         }
@@ -104,19 +142,63 @@ export function App() {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [appMode]);
 
-  // 2. Load User's Workspaces when authenticated
+  // 2. Network connectivity listeners
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (appMode === 'cloud') {
+        addToast('Back online. Connected to cloud.', 'success');
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      if (appMode === 'cloud') {
+        addToast('No internet connection. Reconnect to access cloud services.', 'danger');
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [appMode, addToast]);
+
+  // 3. Load User's Workspaces strictly scoped to mode
   const loadWorkspaces = useCallback(async (preferredWsId?: string) => {
     if (!currentUser) return;
 
     try {
       const isOwner = currentUser.systemRole === 'owner';
-      const userWorkspaces = await workspaceService.getUserWorkspaces(currentUser.id, isOwner);
+      const userWorkspaces = await workspaceService.getUserWorkspaces(
+        currentUser.id,
+        isOwner,
+        isOfflineMode
+      );
+
+      // In offline mode, automatically ensure at least one default workspace exists
+      if (isOfflineMode && userWorkspaces.length === 0) {
+        const created = await workspaceService.createWorkspace(
+          'My Budget',
+          'Offline personal expenses',
+          'INR',
+          currentUser.id,
+          { mode: 'default' },
+          true
+        );
+        setWorkspaces([created]);
+        setActiveWorkspace(created);
+        return;
+      }
+
       setWorkspaces(userWorkspaces);
 
       if (userWorkspaces.length > 0) {
-        // Pick preferred or active or first
         const selected =
           userWorkspaces.find((w) => w.id === preferredWsId) ||
           userWorkspaces.find((w) => w.id === activeWorkspace?.id) ||
@@ -130,24 +212,24 @@ export function App() {
       console.error('Failed to load workspaces:', err);
       addToast(err.message || 'Failed to load workspaces', 'danger');
     }
-  }, [currentUser, activeWorkspace?.id, addToast]);
+  }, [currentUser, isOfflineMode, activeWorkspace?.id, addToast]);
 
   useEffect(() => {
     if (currentUser) {
       loadWorkspaces();
     }
-  }, [currentUser]);
+  }, [currentUser, loadWorkspaces]);
 
-  // 3. Load Scoped Transactions & Budget when active workspace changes
+  // 4. Load Scoped Transactions & Budget when active workspace changes
   const loadWorkspaceData = useCallback(async (workspaceId: string) => {
     if (!workspaceId) return;
 
     try {
       setIsDataLoading(true);
       const [txs, workspaceBudget, categories] = await Promise.all([
-        expenseService.getTransactions(workspaceId),
-        budgetService.getWorkspaceBudget(workspaceId),
-        budgetService.getCategories(workspaceId),
+        expenseService.getTransactions(workspaceId, isOfflineMode),
+        budgetService.getWorkspaceBudget(workspaceId, isOfflineMode),
+        budgetService.getCategories(workspaceId, isOfflineMode),
       ]);
       setTransactions(txs);
       setBudget(workspaceBudget);
@@ -158,7 +240,7 @@ export function App() {
     } finally {
       setIsDataLoading(false);
     }
-  }, [addToast]);
+  }, [isOfflineMode, addToast]);
 
   useEffect(() => {
     if (activeWorkspace) {
@@ -188,19 +270,22 @@ export function App() {
       }
 
       try {
-        const created = await expenseService.addTransaction(activeWorkspace.id, payload, currentUser);
-        const refreshed = await expenseService.getTransactions(activeWorkspace.id);
-        setTransactions(refreshed);
-        addToast(
-          `Added "${created.name}" for ₹${created.amount.toLocaleString('en-IN')}`,
-          'success'
+        const created = await expenseService.addTransaction(
+          activeWorkspace.id,
+          payload,
+          currentUser,
+          isOfflineMode
         );
+        const refreshed = await expenseService.getTransactions(activeWorkspace.id, isOfflineMode);
+        setTransactions(refreshed);
+
+        addToast(`Added "${created.name}" for ₹${created.amount.toLocaleString('en-IN')}`, 'success');
       } catch (err: any) {
         console.error('Failed to add expense:', err);
         addToast(err.message || 'Failed to save expense', 'danger');
       }
     },
-    [activeWorkspace, currentUser, addToast]
+    [activeWorkspace, currentUser, isOfflineMode, addToast]
   );
 
   // Handle Delete Expense
@@ -210,8 +295,8 @@ export function App() {
       const tx = transactions.find((t) => t.id === id);
 
       try {
-        await expenseService.deleteTransaction(activeWorkspace.id, id);
-        const refreshed = await expenseService.getTransactions(activeWorkspace.id);
+        await expenseService.deleteTransaction(activeWorkspace.id, id, isOfflineMode);
+        const refreshed = await expenseService.getTransactions(activeWorkspace.id, isOfflineMode);
         setTransactions(refreshed);
         addToast(`Removed "${tx ? tx.name : 'Expense'}"`, 'danger');
       } catch (err: any) {
@@ -219,13 +304,63 @@ export function App() {
         addToast(err.message || 'Failed to delete expense', 'danger');
       }
     },
-    [activeWorkspace, transactions, addToast]
+    [activeWorkspace, transactions, isOfflineMode, addToast]
   );
+
+  // Mode Divergence: Select Offline Mode from Login Screen
+  const handleSelectOfflineMode = useCallback(async () => {
+    setAppMode('offline');
+    localStorage.setItem('moneyundo_app_mode', 'offline');
+    setCurrentUser(OFFLINE_USER);
+
+    const localWs = await offlineStorage.getLocalWorkspaces();
+    if (localWs.length === 0) {
+      const created = await workspaceService.createWorkspace(
+        'My Budget',
+        'Offline personal expenses',
+        'INR',
+        OFFLINE_USER.id,
+        { mode: 'default' },
+        true
+      );
+      setWorkspaces([created]);
+      setActiveWorkspace(created);
+    } else {
+      setWorkspaces(localWs);
+      setActiveWorkspace(localWs[0]);
+    }
+    addToast('Started in Offline Mode. Data is stored strictly on this device.', 'success');
+  }, [addToast]);
+
+  // Switch to Cloud Account from Offline Mode
+  const handleSwitchToCloud = useCallback(async () => {
+    localStorage.removeItem('moneyundo_app_mode');
+    setAppMode(null);
+    setCurrentUser(null);
+    setActiveWorkspace(null);
+    setWorkspaces([]);
+    setTransactions([]);
+    setBudget(null);
+    setWorkspaceCategories([]);
+    addToast('Switched to Cloud Account login', 'success');
+  }, [addToast]);
 
   // Handle Sign Out
   const handleSignOut = async () => {
     try {
+      if (isOfflineMode) {
+        await handleSwitchToCloud();
+        return;
+      }
       await authService.signOut();
+      localStorage.removeItem('moneyundo_app_mode');
+      setAppMode(null);
+      setCurrentUser(null);
+      setActiveWorkspace(null);
+      setWorkspaces([]);
+      setTransactions([]);
+      setBudget(null);
+      setWorkspaceCategories([]);
       addToast('Signed out successfully', 'success');
     } catch (err: any) {
       console.error('Sign out error:', err);
@@ -246,12 +381,13 @@ export function App() {
     addToast(`Created workspace "${createdWs.name}"`, 'success');
   };
 
+  // Handle Workspace Deletion
   const handleDeleteWorkspace = async (workspace: Workspace) => {
     if (workspace.role !== 'owner') {
       throw new Error('Only the owner of this workspace can delete it.');
     }
 
-    await workspaceService.deleteWorkspace(workspace.id);
+    await workspaceService.deleteWorkspace(workspace.id, isOfflineMode);
     const remainingWorkspaces = workspaces.filter((item) => item.id !== workspace.id);
     setWorkspaces(remainingWorkspaces);
     setTransactions([]);
@@ -279,12 +415,19 @@ export function App() {
   }
 
   // --------------------------------------------------------------------------
-  // Render Login Screen if not authenticated
+  // Render Login & Diverter Screen if not authenticated
   // --------------------------------------------------------------------------
-  if (!session || !currentUser) {
+  if (!currentUser) {
     return (
       <>
-        <AuthScreen onAuthSuccess={() => {}} />
+        <AuthScreen
+          onAuthSuccess={() => {
+            setAppMode('cloud');
+            localStorage.setItem('moneyundo_app_mode', 'cloud');
+            addToast('Signed in successfully', 'success');
+          }}
+          onSelectOfflineMode={handleSelectOfflineMode}
+        />
         <Toast toasts={toasts} onDismiss={dismissToast} />
       </>
     );
@@ -294,7 +437,7 @@ export function App() {
   // Render No Workspace Screen (if user has not been assigned to any workspace)
   // --------------------------------------------------------------------------
   if (!activeWorkspace) {
-    const isOwner = currentUser.systemRole === 'owner';
+    const isOwner = currentUser?.systemRole === 'owner';
     return (
       <div className="auth-wrapper">
         <div className="auth-container" style={{ textAlign: 'center' }}>
@@ -308,7 +451,7 @@ export function App() {
           </h2>
           <p className="auth-subtitle">
             {isOwner
-              ? 'You have Owner privileges. Create your first workspace to start managing budgets and expenses.'
+              ? 'You have Owner privileges. Create a workspace to start tracking expenses.'
               : 'You are signed in as a Member, but have not been assigned to a workspace yet. Please contact a workspace owner or admin to invite you.'}
           </p>
 
@@ -331,19 +474,22 @@ export function App() {
               style={{ justifyContent: 'center' }}
             >
               <LogOut size={16} />
-              <span>Sign Out</span>
+              <span>{isOfflineMode ? 'Switch to Cloud Account' : 'Sign Out'}</span>
             </button>
           </div>
         </div>
 
         {/* Create Workspace Modal */}
-        <CreateWorkspaceModal
-          isOpen={isCreateWorkspaceOpen}
-          onClose={() => setIsCreateWorkspaceOpen(false)}
-          onCreated={handleWorkspaceCreated}
-          userId={currentUser.id}
-          workspaces={workspaces}
-        />
+        {currentUser && (
+          <CreateWorkspaceModal
+            isOpen={isCreateWorkspaceOpen}
+            onClose={() => setIsCreateWorkspaceOpen(false)}
+            onCreated={handleWorkspaceCreated}
+            userId={currentUser.id}
+            workspaces={workspaces}
+            isOfflineMode={isOfflineMode}
+          />
+        )}
 
         <Toast toasts={toasts} onDismiss={dismissToast} />
       </div>
@@ -351,7 +497,7 @@ export function App() {
   }
 
   // --------------------------------------------------------------------------
-  // Render Main Authenticated Application
+  // Render Main Application
   // --------------------------------------------------------------------------
   return (
     <div className="app-layout">
@@ -367,6 +513,8 @@ export function App() {
         onOpenCreateWorkspace={() => setIsCreateWorkspaceOpen(true)}
         currentUser={currentUser}
         onSignOut={handleSignOut}
+        isOfflineMode={isOfflineMode}
+        onSwitchToCloud={handleSwitchToCloud}
       />
 
       {/* Main Content Area */}
@@ -392,6 +540,8 @@ export function App() {
           }
           onOpenAddExpense={() => setIsAddExpenseOpen(true)}
           onToggleMobileMenu={() => setMobileMenuOpen((prev) => !prev)}
+          isOfflineMode={isOfflineMode}
+          isNetworkOffline={!isOnline}
         />
 
         <main>
@@ -440,6 +590,8 @@ export function App() {
                   workspaces={workspaces}
                   onOpenCreateWorkspace={() => setIsCreateWorkspaceOpen(true)}
                   onDeleteWorkspace={handleDeleteWorkspace}
+                  isOfflineMode={isOfflineMode}
+                  onSwitchToCloud={handleSwitchToCloud}
                   onBudgetUpdated={() => loadWorkspaceData(activeWorkspace.id)}
                   onWorkspaceUpdated={() => loadWorkspaces()}
                   onAddToast={addToast}
@@ -450,24 +602,25 @@ export function App() {
         </main>
       </div>
 
-      {/* Add Expense Modal Dialog */}
+      {/* Global Modals & Notifications */}
       <AddExpenseModal
         isOpen={isAddExpenseOpen}
-        categories={workspaceCategories.map((category) => category.name)}
         onClose={() => setIsAddExpenseOpen(false)}
         onSubmit={handleAddExpense}
+        categories={workspaceCategories.map((category) => category.name)}
       />
 
-      {/* Create Workspace Modal Dialog (Owner only) */}
-      <CreateWorkspaceModal
-        isOpen={isCreateWorkspaceOpen}
-        onClose={() => setIsCreateWorkspaceOpen(false)}
-        onCreated={handleWorkspaceCreated}
-        userId={currentUser.id}
-        workspaces={workspaces}
-      />
+      {currentUser && (
+        <CreateWorkspaceModal
+          isOpen={isCreateWorkspaceOpen}
+          onClose={() => setIsCreateWorkspaceOpen(false)}
+          onCreated={handleWorkspaceCreated}
+          userId={currentUser.id}
+          workspaces={workspaces}
+          isOfflineMode={isOfflineMode}
+        />
+      )}
 
-      {/* Feedback Toast */}
       <Toast toasts={toasts} onDismiss={dismissToast} />
     </div>
   );

@@ -7,6 +7,7 @@ import type {
   WorkspaceBudgetConfig,
   WorkspaceBudgetMode,
 } from '../types/expense';
+import { offlineStorage } from './offlineStorage';
 
 export interface BudgetPeriod {
   startDate: string;
@@ -98,27 +99,67 @@ function validateCategory(payload: SaveWorkspaceCategoryPayload): SaveWorkspaceC
 }
 
 class BudgetService {
-  public async getWorkspaceBudget(workspaceId: string): Promise<WorkspaceBudgetConfig> {
+  public async getWorkspaceBudget(
+    workspaceId: string,
+    isOfflineMode: boolean = false
+  ): Promise<WorkspaceBudgetConfig> {
+    if (isOfflineMode || offlineStorage.isLocalWorkspace(workspaceId)) {
+      const localBudget = await offlineStorage.getLocalBudget(workspaceId);
+      if (localBudget) return localBudget;
+
+      const defaultBudget: WorkspaceBudgetConfig = {
+        id: `local-budget-${Date.now()}`,
+        workspaceId,
+        amount: 50000,
+        mode: 'fixed',
+        periodType: 'monthly',
+      };
+      await offlineStorage.saveLocalBudget(defaultBudget);
+      return defaultBudget;
+    }
+
     if (!supabase) throw new Error('Budget services are unavailable. Please contact support.');
+
     const { data, error } = await supabase
       .from('workspace_budgets')
       .select('*')
       .eq('workspace_id', workspaceId)
       .maybeSingle();
+
     if (error) {
       console.error('Failed to load workspace budget:', error);
       throw new Error(`Failed to load workspace budget: ${error.message}`);
     }
-    if (!data) throw new Error('Workspace budget settings are missing. Please ask your workspace owner for help.');
+
+    if (!data) throw new Error('Workspace budget settings are missing. Please contact your workspace owner.');
+
     return mapConfig(data);
   }
 
   public async saveWorkspaceBudget(
     workspaceId: string,
-    payload: SaveWorkspaceBudgetPayload
+    payload: SaveWorkspaceBudgetPayload,
+    isOfflineMode: boolean = false
   ): Promise<WorkspaceBudgetConfig> {
-    if (!supabase) throw new Error('Budget services are unavailable. Please contact support.');
     const validated = validateConfig(payload);
+
+    if (isOfflineMode || offlineStorage.isLocalWorkspace(workspaceId)) {
+      const existing = await offlineStorage.getLocalBudget(workspaceId);
+      const updated: WorkspaceBudgetConfig = {
+        id: existing?.id || `local-budget-${Date.now()}`,
+        workspaceId,
+        amount: validated.amount,
+        mode: validated.mode,
+        periodType: validated.periodType,
+        startDate: validated.startDate,
+        endDate: validated.endDate,
+      };
+      await offlineStorage.saveLocalBudget(updated);
+      return updated;
+    }
+
+    if (!supabase) throw new Error('Budget services are unavailable. Please contact support.');
+
     const { data, error } = await supabase.rpc('save_workspace_budget', {
       p_workspace_id: workspaceId,
       p_amount: validated.amount,
@@ -127,41 +168,68 @@ class BudgetService {
       p_start_date: validated.startDate || null,
       p_end_date: validated.endDate || null,
     });
+
     if (error) {
       console.error('Failed to save workspace budget:', error);
       throw new Error(`Failed to save workspace budget: ${error.message}`);
     }
     if (!data?.success) throw new Error(data?.message || 'Failed to save workspace budget.');
-    return this.getWorkspaceBudget(workspaceId);
+
+    return this.getWorkspaceBudget(workspaceId, false);
   }
 
-  public async getCategories(workspaceId: string): Promise<WorkspaceBudgetCategory[]> {
+  public async getCategories(
+    workspaceId: string,
+    isOfflineMode: boolean = false
+  ): Promise<WorkspaceBudgetCategory[]> {
+    if (isOfflineMode || offlineStorage.isLocalWorkspace(workspaceId)) {
+      return offlineStorage.getLocalCategories(workspaceId);
+    }
+
     if (!supabase) throw new Error('Budget services are unavailable. Please contact support.');
+
     const { data, error } = await supabase
       .from('workspace_categories')
       .select('id, workspace_id, name, amount')
       .eq('workspace_id', workspaceId)
       .order('name', { ascending: true });
+
     if (error) {
       console.error('Failed to load workspace categories:', error);
       throw new Error(`Failed to load workspace categories: ${error.message}`);
     }
+
     return (data || []).map(mapCategory);
   }
 
   public async saveCategory(
     workspaceId: string,
     payload: SaveWorkspaceCategoryPayload,
-    categoryId?: string
+    categoryId?: string,
+    isOfflineMode: boolean = false
   ): Promise<WorkspaceBudgetCategory> {
-    if (!supabase) throw new Error('Budget services are unavailable. Please contact support.');
     const validated = validateCategory(payload);
+
+    if (isOfflineMode || offlineStorage.isLocalWorkspace(workspaceId)) {
+      const cat: WorkspaceBudgetCategory = {
+        id: categoryId || `local-cat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        workspaceId,
+        name: validated.name,
+        amount: validated.amount,
+      };
+      await offlineStorage.saveLocalCategory(cat);
+      return cat;
+    }
+
+    if (!supabase) throw new Error('Budget services are unavailable. Please contact support.');
+
     const { data, error } = await supabase.rpc('save_workspace_category', {
       p_workspace_id: workspaceId,
       p_category_id: categoryId || null,
       p_name: validated.name,
       p_amount: validated.amount,
     });
+
     if (error) {
       console.error('Failed to save workspace category:', error);
       throw new Error(`Failed to save category: ${error.message}`);
@@ -172,12 +240,23 @@ class BudgetService {
     return mapCategory(data.category);
   }
 
-  public async deleteCategory(workspaceId: string, categoryId: string): Promise<void> {
+  public async deleteCategory(
+    workspaceId: string,
+    categoryId: string,
+    isOfflineMode: boolean = false
+  ): Promise<void> {
+    if (isOfflineMode || offlineStorage.isLocalWorkspace(workspaceId)) {
+      await offlineStorage.deleteLocalCategory(workspaceId, categoryId);
+      return;
+    }
+
     if (!supabase) throw new Error('Budget services are unavailable. Please contact support.');
+
     const { data, error } = await supabase.rpc('delete_workspace_category', {
       p_workspace_id: workspaceId,
       p_category_id: categoryId,
     });
+
     if (error) {
       console.error('Failed to delete workspace category:', error);
       throw new Error(`Failed to delete category: ${error.message}`);
@@ -187,16 +266,31 @@ class BudgetService {
 
   public async cloneCategories(
     sourceWorkspaceId: string,
-    targetWorkspaceId: string
+    targetWorkspaceId: string,
+    isOfflineMode: boolean = false
   ): Promise<number> {
-    if (!supabase) throw new Error('Budget services are unavailable. Please contact support.');
     if (!sourceWorkspaceId || !targetWorkspaceId || sourceWorkspaceId === targetWorkspaceId) {
       throw new Error('Choose a different source workspace.');
     }
+
+    if (isOfflineMode || offlineStorage.isLocalWorkspace(targetWorkspaceId)) {
+      const sourceCategories = await this.getCategories(sourceWorkspaceId, true);
+      for (const sc of sourceCategories) {
+        await this.saveCategory(targetWorkspaceId, {
+          name: sc.name,
+          amount: sc.amount,
+        }, undefined, true);
+      }
+      return sourceCategories.length;
+    }
+
+    if (!supabase) throw new Error('Budget services are unavailable. Please contact support.');
+
     const { data, error } = await supabase.rpc('clone_workspace_categories', {
       p_source_workspace_id: sourceWorkspaceId,
       p_target_workspace_id: targetWorkspaceId,
     });
+
     if (error) {
       console.error('Failed to clone workspace categories:', error);
       throw new Error(`Failed to clone categories: ${error.message}`);

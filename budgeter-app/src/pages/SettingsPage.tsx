@@ -7,6 +7,9 @@ import {
   Plus,
   Loader2,
   AlertCircle,
+  Cloud,
+  HardDrive,
+  Shield,
 } from 'lucide-react';
 import type { Workspace, WorkspaceMember, UserProfile } from '../types/expense';
 import { workspaceService } from '../services/workspaceService';
@@ -20,6 +23,8 @@ interface SettingsPageProps {
   workspaces: Workspace[];
   onOpenCreateWorkspace: () => void;
   onDeleteWorkspace: (workspace: Workspace) => Promise<void>;
+  isOfflineMode?: boolean;
+  onSwitchToCloud?: () => void;
   onWorkspaceUpdated?: () => void;
   onBudgetUpdated: () => void;
   onAddToast: (text: string, type?: 'success' | 'danger') => void;
@@ -32,6 +37,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   workspaces,
   onOpenCreateWorkspace,
   onDeleteWorkspace,
+  isOfflineMode = false,
+  onSwitchToCloud,
   onWorkspaceUpdated,
   onBudgetUpdated,
   onAddToast,
@@ -49,6 +56,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const isAdmin = activeWorkspace.role === 'admin';
   const canManageMembers = isOwner || isAdmin;
   const canCreateWorkspace = currentUser.systemRole === 'owner';
+  const isLocal = isOfflineMode || activeWorkspace.storageType === 'local' || activeWorkspace.id.startsWith('local-');
 
   const loadMembers = async () => {
     try {
@@ -155,6 +163,40 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         )}
       </div>
 
+      {/* Storage & Cloud Sync Status Card */}
+      <div className={`settings-card storage-status-card ${isLocal ? 'local' : 'cloud'}`}>
+        <div className="storage-status-header">
+          <div className={`storage-icon-circle ${isLocal ? 'green' : 'purple'}`}>
+            {isLocal ? <HardDrive size={20} /> : <Cloud size={20} />}
+          </div>
+          <div className="storage-status-info">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h3 className="settings-section-title" style={{ margin: 0 }}>
+                {isLocal ? 'Storage: Local Offline (On-Device)' : 'Storage: Cloud Synced (Supabase)'}
+              </h3>
+              <span className={`storage-pill ${isLocal ? 'local' : 'cloud'}`}>
+                {isLocal ? 'Single User' : 'Multi-User'}
+              </span>
+            </div>
+            <p className="settings-section-desc" style={{ marginTop: 4 }}>
+              {isLocal
+                ? 'All expenses, budgets, and categories for this workspace are stored exclusively on this device. Switch to a Cloud account anytime to invite family members and sync across devices.'
+                : 'This workspace is synced to the cloud database. It supports real-time multi-user collaboration, role-based access, and automated backups.'}
+            </p>
+          </div>
+          {isLocal && onSwitchToCloud && (
+            <button
+              type="button"
+              className="btn-primary sync-to-cloud-btn"
+              onClick={onSwitchToCloud}
+            >
+              <Cloud size={16} />
+              <span>Switch to Cloud</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Role & Permissions Explanation Card */}
       <div className="settings-card permission-card">
         <div className="permission-card-header">
@@ -204,7 +246,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
           </div>
 
-          {canManageMembers && !isAddingMember && (
+          {!isLocal && canManageMembers && !isAddingMember && (
             <button
               type="button"
               className="btn-secondary"
@@ -216,8 +258,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           )}
         </div>
 
+        {isLocal && (
+          <div className="offline-notice-box" style={{ margin: '16px 0 8px' }}>
+            <Shield size={16} className="notice-icon" />
+            <span>
+              <strong>Single-User Workspace:</strong> Member invitations and multi-user roles are disabled in Offline Mode. To collaborate with family members, switch to a Cloud Account.
+            </span>
+          </div>
+        )}
+
         {/* Add Member Form */}
-        {isAddingMember && (
+        {!isLocal && isAddingMember && (
           <div className="add-member-panel">
             <h4 style={{ fontSize: '0.925rem', fontWeight: 600, marginBottom: 8 }}>
               {isOwner ? 'Assign or Invite Member / Admin' : 'Assign Workspace Member'}

@@ -49,6 +49,7 @@ export const TransactionRow: React.FC<TransactionRowProps> = ({
               style={{
                 backgroundColor: categoryInfo.bgColor,
                 color: categoryInfo.textColor,
+                border: `1px solid ${categoryInfo.borderColor}`,
               }}
             >
               {transaction.category}

@@ -26,6 +26,7 @@ export interface Transaction {
   status: TransactionStatus;
   notes?: string;
   createdAt: string;
+  isPendingSync?: boolean;
 }
 
 export type BudgetPeriodType = 'monthly' | 'yearly' | 'custom';
@@ -74,6 +75,8 @@ export type SystemRole = 'owner' | 'member';
 
 export type WorkspaceRole = 'owner' | 'admin' | 'member';
 
+export type WorkspaceStorageType = 'cloud' | 'local';
+
 export interface Workspace {
   id: string;
   name: string;
@@ -83,6 +86,16 @@ export interface Workspace {
   role: WorkspaceRole;
   membersCount: number;
   createdAt?: string;
+  storageType?: WorkspaceStorageType;
+  syncStatus?: 'synced' | 'local_only' | 'pending_sync';
+}
+
+export interface PendingSyncMutation {
+  id: string;
+  workspaceId: string;
+  type: 'add_transaction' | 'delete_transaction';
+  payload: any;
+  createdAt: string;
 }
 
 export interface UserProfile {
